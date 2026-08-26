@@ -15,7 +15,7 @@ const env = (key, fallback) => {
 };
 
 // Backend tim kiem tren Kaggle. Doi moi lan mo tunnel moi.
-export const web_url = env("NEXT_PUBLIC_WEB_URL", "http://localhost:8080");
+export const web_url = env("NEXT_PUBLIC_WEB_URL", "https://donation-bonfire-putdown.ngrok-free.dev");
 
 // Server trang thai chay ngay tren may nay.
 export const socket_url = env("NEXT_PUBLIC_SOCKET_URL", "http://localhost:8081");
