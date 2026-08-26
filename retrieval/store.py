@@ -175,11 +175,12 @@ class ArtifactStore:
             raise RuntimeError(
                 f"features co {self.X.shape[1]} chieu, khong phai {EMBED_DIM} cua SigLIP"
             )
+        if hasattr(encoder, "_ensure"):
+            encoder._ensure()
         dim = getattr(encoder, "dim", None)
         if dim != EMBED_DIM:
             raise RuntimeError(
-                f"X.shape[1]=={EMBED_DIM} nen encoder BAT BUOC la SigLIP so400m "
-                f"(so chieu {EMBED_DIM}), dang nhan encoder {dim} chieu."
+                f"text encoder co {dim} chieu, khong phai {EMBED_DIM} cua SigLIP"
             )
 
     def frames_of(self, video_id):

@@ -45,8 +45,6 @@ function Index() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [nomic, setNomic] = useState(true);
-  const [clipv2, setClipv2] = useState(false);
   const [recTags, setRecTags] = useState([]);
   const [fullScreenImg, setFullScreenImg] = useState(null);
   const [queryHistory, setQueryHistory] = useState([]);
@@ -292,8 +290,6 @@ function Index() {
         // tieng Anh cho SigLIP (khong duoc gui tieng Viet vao SigLIP).
         query_vi: query,
         filtervideo: filtervideo,
-        nomic: nomic,
-        clipv2: clipv2,
         filter: filter,
         id: id,
         k: k,
@@ -643,8 +639,6 @@ function Index() {
               textquery: query,
               query_vi: query,
               filtervideo: filtervideo,
-              nomic: nomic,
-              clipv2: clipv2,
               filter: filter,
               id: id,
               k: k,
@@ -841,8 +835,8 @@ function Index() {
         {/* {loading icon} */}
         {loading && <LoadingIcon />}
         {/* {searchbars} */}
-        <div className="y h-fit w-full container mt-1 p-1">
-          <div id="bar" className=" main-search flex relative gap-1">
+        <div className="w-full flex flex-col items-center justify-center p-4 bg-white/5 backdrop-blur-md shadow-[0_4px_30px_rgba(0,0,0,0.1)] border border-white/20 rounded-xl mb-4 mt-2 w-[98%] mx-auto z-10">
+          <div id="bar" className="w-full flex relative gap-2 items-center">
             {
               // translate &&
               <span
@@ -853,7 +847,7 @@ function Index() {
                   document.getElementById("mainsearch").focus();
                 }}
                 style={{ zIndex: 2, display: "none" }}
-                className="  hover:ring-2 ring-orange-400 transition-all cursor-pointer align-middle h-fit absolute top-11 placeholder:italic text-slate-300  w-full p-1 indent-1 rounded-md bg-slate-800"
+                className="hover:ring-2 ring-orange-400 transition-all cursor-pointer align-middle h-fit absolute top-14 placeholder:italic text-slate-300 w-full p-2 indent-2 rounded-md bg-slate-800/90 backdrop-blur-sm"
               >
                 {translate ? translate : "Translate..."}
               </span>
@@ -863,7 +857,7 @@ function Index() {
               id="K"
               type="number"
               placeholder="K"
-              className="w-12 transition-all hover:drop-shadow-[0px_4px_3px_rgba(255,255,255,0.2)] placeholder:italic text-slate-300 indent-0.5 relative rounded-sm bg-slate-800"
+              className="w-16 h-12 transition-all hover:drop-shadow-[0px_4px_10px_rgba(255,255,255,0.2)] placeholder:italic text-slate-300 indent-2 text-lg relative rounded-full bg-slate-900/50 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
               onChange={(e) => {
                 const val = e.target.value === "" ? 500 : Number(e.target.value);
                 const parsed = Number.isNaN(val) ? 500 : val;
@@ -885,8 +879,8 @@ function Index() {
                 }
               }}
               type="search"
-              placeholder="Type here..."
-              className="  transition-all hover:drop-shadow-[0px_4px_3px_rgba(255,255,255,0.2)] placeholder:italic text-slate-300 relative w-full indent-3 rounded-full bg-slate-800"
+              placeholder="Nhập truy vấn tìm kiếm..."
+              className="transition-all hover:drop-shadow-[0px_4px_10px_rgba(255,255,255,0.2)] placeholder:text-slate-400 text-white text-lg relative w-full h-12 indent-4 rounded-full bg-slate-900/50 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-inner"
               onClick={(e) => e.stopPropagation()}
               value={query}
               onChange={(e) => {
@@ -909,11 +903,11 @@ function Index() {
                   getRec();
                 }}
               >
-                <AiOutlineSearch color={"black"} fontSize="1.5rem" />
+                <AiOutlineSearch color={"white"} fontSize="1.8rem" />
               </button>
             </div>
           </div>
-          <div className="checkboxes flex items-center pl-2 h-fit gap-1">
+          <div className="checkboxes flex flex-wrap items-center mt-3 h-fit gap-2 w-full justify-center">
             <Tabs
               queryHistory={queryHistory}
               handleHistory={handleHistory}
@@ -992,43 +986,6 @@ function Index() {
                 className="cursor-pointer pl-0.5 text-slate-300"
               >
                 <span className="">AutoIgnore</span>
-              </label>
-            </div>
-            <div id="nomic" className="flex items-center ">
-              <input
-                checked={nomic}
-                onChange={(e) => {
-                  setNomic(e.target.checked);
-                }}
-                id="Nomic"
-                type="checkbox"
-                className="cursor-pointer rounded-md  duration-200 w-5 h-5 accent-slate-600 bg-gray-100 border-gray-300 rounded hover:ring-slate-500 hover:ring-2"
-              />
-              <label
-                htmlFor="Nomic"
-                className="cursor-pointer pl-0.5 text-slate-300"
-              >
-                <span className="">Nomic</span>
-              </label>
-            </div>
-            <div
-              id="clipv2"
-              className="flex items-center text-orange-500 rounded-md"
-            >
-              <input
-                checked={clipv2}
-                onChange={(e) => {
-                  setClipv2(e.target.checked);
-                }}
-                id="Clipv2"
-                type="checkbox"
-                className="cursor-pointer rounded-md duration-200 w-5 h-5 accent-orange-700/75 text-red-500 rounded hover:ring-orange-300 hover:ring-2"
-              />
-              <label
-                htmlFor="Clipv2"
-                className="cursor-pointer pl-0.5 text-slate-300"
-              >
-                <span className="">CLIPv2</span>
               </label>
             </div>
             {/* question dropdown */}

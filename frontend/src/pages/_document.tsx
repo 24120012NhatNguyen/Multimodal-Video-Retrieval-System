@@ -10,16 +10,7 @@ export default function Document() {
         <meta charSet="UTF-8"></meta>
       </Head>
       <title>US_SHAREHOLDER</title>
-      <body
-        // style={{
-        //   background:
-        //     "linear-gradient(109.6deg, rgb(20, 30, 48) 11.2%, rgb(36, 40, 65) 91.1%)",
-        // }}
-        // className={`${inter.className} bg-slate-800 text-slate-100 container mx-auto p-4`}
-        // bg-gradient-to-br min-h-screen from-gray-800 to-slate-950
-        className={`text-slate-100 w-view box-border bg-fixed`}
-        style={{ backgroundImage: `url("/us_shareholder_bg.jpg")`, width: "100%" }}
-      >
+      <body className={`text-slate-100 min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black`}>
         <Main />
         <NextScript />
       </body>

@@ -35,8 +35,8 @@ SIGLIP_MODEL = os.environ.get("SIGLIP_MODEL", "google/siglip-so400m-patch14-384"
 # Dat gia tri that lay tu chinh tai khoan cua ban:
 #     export GEMINI_API_KEY=...
 #     python -m retrieval.llm_client --list      # in ra ID kem ban co that
-#     export GEMINI_MODEL_FLASH=<id-co-so-phien-ban>
-#     export GEMINI_MODEL_PRO=<id-co-so-phien-ban>
+#     export GEMINI_MODEL_FLASH=gemini-3.7-flash
+#     export GEMINI_MODEL_PRO=gemini-2.5-pro
 
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "gemini")
 LLM_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")

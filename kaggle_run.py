@@ -84,6 +84,7 @@ subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r",
 subprocess.run([sys.executable, "-m", "pip", "install", "-q", "pyngrok",
                 "uvicorn"], check=True)
 
+# 2. Thiết lập biến môi trường
 os.environ["ARTIFACT_ROOT"] = ARTIFACT_ROOT
 if GEMINI_API_KEY:
     os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
@@ -91,8 +92,8 @@ if GEMINI_MODEL_PRO:
     os.environ["GEMINI_MODEL_PRO"] = GEMINI_MODEL_PRO
 if GEMINI_MODEL_FLASH:
     os.environ["GEMINI_MODEL_FLASH"] = GEMINI_MODEL_FLASH
-if AIC_API_TOKEN:
-    os.environ["AIC_API_TOKEN"] = AIC_API_TOKEN
+
+print(f"Checking ARTIFACT_ROOT: {ARTIFACT_ROOT}")
 
 # --- Kiem tra du lieu truoc khi mo tunnel -------------------------------
 print(f"\nARTIFACT_ROOT = {ARTIFACT_ROOT}")

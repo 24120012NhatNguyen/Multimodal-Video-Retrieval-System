@@ -36,9 +36,9 @@ class TextSearchRequest(BaseModel):
     textquery: str = ""
     range_filter: int = 3
     filter: bool = False
-    id: Optional[List[int]] = None
+    id: Optional[List[str]] = None
     ignore: Optional[bool] = False
-    ignore_idxs: Optional[List[int]] = None
+    ignore_idxs: Optional[List[str]] = None
     filtervideo: int = 0
     videos: Optional[List[Dict[str, Any]]] = None
 
