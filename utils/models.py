@@ -56,6 +56,14 @@ class TextSearchRequest(BaseModel):
     # Phan ra truy van bang LLM (tier "pro"). Tat -> dung truy van tho.
     # Da tu nhap query_en thi co nay bi bo qua.
     decompose: bool = True
+    # Dong hang chuoi su kien bang DP -- NGUOI DUNG NOI GI THI NGHE NAY:
+    #   True  = ep BAT du bo phan loai cho la khong can
+    #   False = ep TAT (de so sanh hai che do)
+    #   None  = de he thong tu quyet dinh theo loai truy van
+    align: Optional[bool] = None
+    # Ep loai truy van, ghi de ca LLM lan bo do anchor.
+    # "generic_chain" | "anchored" | None (tu quyet dinh)
+    kind: Optional[str] = None
 
     @field_validator("query_en", "query_vi", "textquery", mode="before")
     @classmethod
@@ -181,7 +189,7 @@ class AnswerEntry(BaseModel):
 
 
 class AutofillRequest(BaseModel):
-    """Viec 3 -- lap day 100 dong tren tap ket qua da coলগ্ন san."""
+    """Viec 3 -- lap day 100 dong tren tap ket qua da co san."""
 
     manual: List[AnswerEntry] = []
     # Tap ung vien dang hien tren luoi: [{"video_id", "frame_idx", "score"}]

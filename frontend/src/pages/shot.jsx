@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import LoadingIcon from "../components/LoadingIcon";
 import ImageListShot from "../components/ImageListShot";
-import { web_url, socket_url, server, session } from "../helper/web_url";
+import { web_url, socket_url, server, session, apiHeaders } from "../helper/web_url";
 import Questions from "../components/Questions";
 import Lock from "../components/Lock";
 // import useSpeechToText from 'react-hook-speech-to-text';
@@ -34,9 +34,7 @@ function Video() {
     if (router.query.id !== undefined)
       fetch(`${web_url}/getvideoshot?imgid=${router.query.id}`, {
         method: "get",
-        headers: new Headers({
-          "ngrok-skip-browser-warning": "69420",
-        }),
+        headers: apiHeaders(),
       })
         .then((data) => data.json())
         .then((data) => {
@@ -65,10 +63,7 @@ function Video() {
     setQuestionsLoading(true);
     fetch(`${socket_url}/getquestions`, {
       method: "post",
-      headers: new Headers({
-        "ngrok-skip-browser-warning": "69420",
-        "Content-Type": "application/json",
-      }),
+      headers: apiHeaders(),
       body: JSON.stringify({
         username: username,
       }),

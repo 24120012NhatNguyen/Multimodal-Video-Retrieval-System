@@ -136,7 +136,12 @@ class GeminiClient(LLMClient):
         self.max_retry = cfg.LLM_MAX_RETRY if max_retry is None else max_retry
         self.breaker = _Breaker(cfg.LLM_BREAKER_THRESHOLD, cfg.LLM_COOLDOWN_SEC)
         self._client = None
+        # init_error: KHONG the ket noi (thieu API key, thieu SDK). Chan ca
+        # list_models().
         self.init_error = None
+        # config_note: ket noi duoc nhung chua du de generate() (thieu model ID).
+        # KHONG duoc chan list_models() -- do chinh la lenh de lay model ID.
+        self.config_note = None
 
         self.warnings = [
             f"model {tier!r} = {mid!r} khong co so phien ban -- alias bi hot-swap, "
@@ -258,6 +263,7 @@ class GeminiClient(LLMClient):
             "co_api_key": bool(self.api_key),
             "sdk": "google-genai" if self._client else None,
             "init_error": self.init_error,
+            "config_note": self.config_note,
             "models": dict(self.models),
             "models_co_so_phien_ban": {t: looks_pinned(m)
                                        for t, m in self.models.items()},
@@ -281,17 +287,17 @@ def get_client():
         if _client is None:
             if cfg.LLM_PROVIDER == "gemini":
                 _client = GeminiClient()
-                if not (cfg.LLM_API_KEY and (cfg.LLM_MODEL_FLASH or cfg.LLM_MODEL_PRO)):
-                    missing = []
-                    if not cfg.LLM_API_KEY:
-                        missing.append("GEMINI_API_KEY")
-                    if not cfg.LLM_MODEL_FLASH:
-                        missing.append("GEMINI_MODEL_FLASH")
-                    if not cfg.LLM_MODEL_PRO:
-                        missing.append("GEMINI_MODEL_PRO")
-                    _client.init_error = (
+                # Thieu model ID KHONG phai loi ket noi: van phai mo duoc SDK de
+                # chay list_models() -- lenh dung de lay chinh model ID do.
+                missing = [n for n, v in (
+                    ("GEMINI_MODEL_FLASH", cfg.LLM_MODEL_FLASH),
+                    ("GEMINI_MODEL_PRO", cfg.LLM_MODEL_PRO),
+                ) if not v]
+                if missing:
+                    _client.config_note = (
                         "chua dat: " + ", ".join(missing)
-                        + " -- he thong chay che do khong-LLM")
+                        + " -- che do khong-LLM. Lay ID that bang: "
+                        "python -m retrieval.llm_client --list")
             else:
                 _client = NullClient(
                     f"chua ho tro LLM_PROVIDER={cfg.LLM_PROVIDER!r}")
@@ -320,10 +326,22 @@ if __name__ == "__main__":
     c = get_client()
     print(json.dumps(c.status(), ensure_ascii=False, indent=2))
     if a.list:
-        r = c.list_models() if hasattr(c, "list_models") else {"ok": False}
+        # Chi can API KEY. Thieu model ID khong chan lenh nay -- day chinh la
+        # lenh de lay model ID.
+        r = c.list_models() if hasattr(c, "list_models") else {
+            "ok": False, "error": f"provider {getattr(c, 'name', '?')} khong ho tro"}
         if r.get("ok"):
-            print("\nModel tren tai khoan (chon ID co pinned=True):")
+            pinned = [m for m in r["models"] if m["pinned"]]
+            print(f"\n{len(r['models'])} model tren tai khoan "
+                  f"({len(pinned)} co so phien ban).")
+            print("Chon dong [pinned] -- alias tran bi hot-swap giua luc thi:\n")
             for m in r["models"]:
                 print(f"  {'[pinned]' if m['pinned'] else '[alias] '} {m['id']}")
+            if pinned:
+                print("\nVi du dat bien:")
+                print(f'  os.environ["GEMINI_MODEL_FLASH"] = "{pinned[0]["id"]}"')
+                print(f'  os.environ["GEMINI_MODEL_PRO"]   = "{pinned[-1]["id"]}"')
         else:
             print("\nKhong liet ke duoc:", r.get("error"))
+            if not cfg.LLM_API_KEY:
+                print("  -> Dat GEMINI_API_KEY truoc. KHONG can model ID cho lenh nay.")

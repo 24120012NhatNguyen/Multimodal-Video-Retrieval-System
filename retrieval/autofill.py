@@ -102,6 +102,10 @@ def autofill(store, manual, candidates=None, config=None, ignore=None, target=No
 
     # --- 1 + 2: thu cong truoc, moi frame keo theo lan can cua no ----------
     for it in (manual or []):
+        # Chap nhan ca dict lan pydantic model, de noi goi khong phai nho
+        # model_dump() moi lan.
+        if not isinstance(it, dict):
+            it = it.model_dump() if hasattr(it, "model_dump") else dict(it)
         vid = it.get("video_id")
         fi = it.get("frame_idx")
         if vid is None or fi is None:

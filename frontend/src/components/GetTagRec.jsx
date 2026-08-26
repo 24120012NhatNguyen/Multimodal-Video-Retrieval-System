@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 // import { words } from "../helper/words";
 import { AiOutlineSearch } from "react-icons/ai";
+import { apiHeaders } from "../helper/web_url.js";
 
 function SearchTag({ addTag, web_url, recTags, setRecTags }) {
   const [query, setQuery] = useState("");
@@ -14,10 +15,7 @@ function SearchTag({ addTag, web_url, recTags, setRecTags }) {
     // console.log(query);
     fetch(`${web_url}/getrec`, {
       method: "post",
-      headers: new Headers({
-        "ngrok-skip-browser-warning": "69420",
-        "Content-Type": "application/json",
-      }),
+      headers: apiHeaders(),
       body: JSON.stringify({ text: query }),
     })
       .then((data) => data.json())

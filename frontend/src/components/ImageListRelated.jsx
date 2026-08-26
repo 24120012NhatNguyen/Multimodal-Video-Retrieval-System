@@ -1,6 +1,7 @@
 import React from "react";
 
 import Image from "next/image";
+import { imageUrl } from "../helper/web_url.js";
 // Run this in your terminal: npm install react-tooltip
 
 function ImageList({
@@ -13,7 +14,7 @@ function ImageList({
     >
       <div className="group relative flex h-[169px] w-[300px]">
         <Image
-          src={image}
+          src={imageUrl(image)}
           // src={"/shoes.jpg"}
           fill={true}
           className="hover:ease-in-out duration-300 relative rounded-md "

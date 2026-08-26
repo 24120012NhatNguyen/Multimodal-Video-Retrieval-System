@@ -4,6 +4,7 @@ import {
 } from "react-icons/ai";
 import ImageListRelated from "./ImageListRelated";
 import Image from 'next/image'
+import { imageUrl } from "../helper/web_url.js";
 
 
 function FullScreen({fullScreenImg, setFullScreenImg, relatedObj}) {
@@ -19,7 +20,7 @@ function FullScreen({fullScreenImg, setFullScreenImg, relatedObj}) {
         >
           <div className="relative w-[1000px] h-[562px] rounded-md">
             <Image
-              src={fullScreenImg["imgpath"]}
+              src={imageUrl(fullScreenImg["imgpath"])}
               fill={true}
               className="rounded-md opacity-100"
             />

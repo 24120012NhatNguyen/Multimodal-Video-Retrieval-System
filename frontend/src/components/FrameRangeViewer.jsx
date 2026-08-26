@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { web_url } from "../helper/web_url.js";
+import { web_url, apiHeaders } from "../helper/web_url.js";
 import ImageListVideoPanel from "./ImageListVideoPanel.jsx";
 import VideoWrapper from "./VideoWrapper.jsx";
 import LoadingIcon from "./LoadingIcon.jsx";
@@ -23,9 +23,7 @@ function FrameRangeViewer({
 
   const fetchGetObj = {
     method: "get",
-    headers: new Headers({
-      "ngrok-skip-browser-warning": "69420",
-    }),
+    headers: apiHeaders(),
   };
 
   const handleFetch = () => {

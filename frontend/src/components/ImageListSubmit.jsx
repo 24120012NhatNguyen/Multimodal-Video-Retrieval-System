@@ -3,6 +3,7 @@ import Image from "next/image";
 import { BsArrowsFullscreen } from "react-icons/bs";
 import { BiSolidVideos } from "react-icons/bi";
 import { AiOutlineDelete, AiOutlineSelect } from "react-icons/ai";
+import { imageUrl } from "../helper/web_url.js";
 
 function ImageList({
   imagepath,
@@ -23,7 +24,7 @@ function ImageList({
       <div className=" relative h-[167px] w-[300px]">
         <Image
           onDragStart={(e) => e.preventDefault()}
-          src={imagepath}
+          src={imageUrl(imagepath)}
           // src={"/shoes.jpg"}
           fill={true}
           className=" relative rounded-md "

@@ -9,6 +9,7 @@ luyen chu yeu tieng Anh va khong hieu danh tu rieng tieng Viet.
 """
 
 from fusion import explain, frames_in_videos, rrf, siglip_video_rank
+from retrieval.trake import dp_alignment, events_to_scores
 from retrieval.config import FusionConfig
 from retrieval.encoder import SigLipTextEncoder
 from retrieval.store import ArtifactStore
@@ -105,7 +106,12 @@ class FusionEngine:
                         for n in VI_CHANNELS if n in lists},
                 "video_info": {
                     "lst_keyframe_paths": [r["path"] for r in rows],
-                    "lst_idxs": [r["gidx"] for r in rows],
+                    # Khoa on dinh dung chung voi socket_app (submit/ignore).
+                    # He thong cu dung chi so toan cuc trong dict/id2img.json,
+                    # thu muc do da bi xoa.
+                    "lst_idxs": [entry_key(r["video_id"], r["frame_idx"])
+                                 for r in rows],
+                    "lst_gidx": [r["gidx"] for r in rows],
                     "lst_keyframe_idxs": [r["frame_idx"] for r in rows],
                     "lst_pts_times": [r["pts_time"] for r in rows],
                     "lst_scores": [r["score"] for r in rows],
@@ -120,8 +126,64 @@ class FusionEngine:
         }
 
     # ------------------------------------------------------------------
+    def align_videos(self, clauses, video_ids, delta=None, gamma=None):
+        """Dong hang chuoi su kien tren tung video, xep lai theo diem DP.
+
+        Day la buoc an thua voi truy van "chuoi hanh dong chung chung": tung
+        menh de rieng le thi hang nghin video khop, nhung dong xuat hien DUNG
+        THU TU va trong cua so thoi gian thi hiem. Cong diem phang khong bat
+        duoc dieu do, chi DP moi bat duoc.
+        """
+        delta = self.cfg.dp_delta_sec if delta is None else delta
+        gamma = self.cfg.dp_gamma if gamma is None else gamma
+        out = []
+        for vid in video_ids:
+            pts, fidx, scores = events_to_scores(
+                self.store, vid, self.encoder, clauses)
+            if not pts:
+                continue
+            path, score = dp_alignment(pts, scores, delta=delta, gamma=gamma)
+            if not path:
+                continue
+            matched = []
+            for k, pi in enumerate(path):
+                if pi == -1:
+                    matched.append({"event": k, "frame_idx": None,
+                                    "pts_time": None, "skipped": True})
+                else:
+                    matched.append({
+                        "event": k, "frame_idx": int(fidx[pi]),
+                        "pts_time": round(float(pts[pi]), 3),
+                        "score": round(float(scores[pi, k]), 4),
+                        "skipped": False,
+                    })
+            out.append({"video_id": vid, "dp_score": float(score),
+                        "matched": matched,
+                        "n_skipped": sum(1 for m in matched if m["skipped"])})
+        out.sort(key=lambda x: -x["dp_score"])
+        return out
+
+    # ------------------------------------------------------------------
     def _frames(self, query_en, video_ids, topk, ignore_gidx=None):
-        ignore = set(ignore_gidx or ())
+        # Danh sach ignore den tu socket_app duoi dang khoa "video#frame";
+        # cac client cu co the con gui chi so nguyen. Nhan ca hai.
+        ignore = set()
+        ignore_int = set()
+        for it in (ignore_gidx or ()):
+            if isinstance(it, str):
+                p = parse_entry_key(it)
+                if p:
+                    ignore.add(entry_key(*p))
+            elif isinstance(it, dict):
+                v, f = it.get("video_id"), it.get("frame_idx")
+                if v is not None and f is not None:
+                    ignore.add(entry_key(v, f))
+            else:
+                try:
+                    ignore_int.add(int(it))
+                except (TypeError, ValueError):
+                    pass
+        n_ignore = len(ignore) + len(ignore_int)
         use_siglip = bool(query_en and query_en.strip())
         if use_siglip:
             try:
@@ -132,13 +194,13 @@ class FusionEngine:
         if use_siglip:
             q = query_en.strip().split("\n")[0].strip()
             df = frames_in_videos(self.store.X, self.store.meta, self.encoder,
-                                  q, video_ids, topk=topk + len(ignore))
+                                  q, video_ids, topk=topk + n_ignore)
             rows = df.to_dict("records")
         else:
             # Khong co encoder: van tra ve frame cua dung nhung video da duoc
             # xep hang boi cac kenh van ban. Chia deu han muc cho tung video --
             # neu chi sort roi cat thi ca han muc roi vao mot video dau bang.
-            budget = max(1, (topk + len(ignore)) // max(1, len(video_ids)))
+            budget = max(1, (topk + n_ignore) // max(1, len(video_ids)))
             rows = []
             for vid in video_ids:
                 df = self.store.frames_of(vid)
@@ -154,10 +216,10 @@ class FusionEngine:
         out = []
         for r in rows:
             g = int(r["gidx"])
-            if g in ignore:
-                continue
             vid = r["video_id"]
             fi = int(r["frame_idx"])
+            if g in ignore_int or entry_key(vid, fi) in ignore:
+                continue
             out.append({
                 "gidx": g,
                 "video_id": vid,
@@ -183,3 +245,20 @@ class FusionEngine:
 def keyframe_url(video_id, frame_idx):
     """Duong dan anh keyframe MOI -- phuc vu on-demand tu mp4, xem retrieval.frames."""
     return f"/keyframe/{video_id}/{int(frame_idx):06d}.jpg"
+
+
+def entry_key(video_id, frame_idx):
+    """Khoa on dinh cua mot keyframe, dung chung giua ket qua tim kiem, danh
+    sach ignore va danh sach dap an."""
+    return f"{video_id}#{int(frame_idx)}"
+
+
+def parse_entry_key(key):
+    """'L24_V007#12450' -> ('L24_V007', 12450), hoac None."""
+    if not isinstance(key, str) or "#" not in key:
+        return None
+    vid, _, fi = key.rpartition("#")
+    try:
+        return vid, int(fi)
+    except ValueError:
+        return None

@@ -3,6 +3,7 @@ import { AiOutlineSelect, AiFillLike, AiFillDislike } from "react-icons/ai";
 import { BsArrowsFullscreen, BsDatabaseAdd } from "react-icons/bs";
 import { BiFileFind, BiSolidVideos, BiHide } from "react-icons/bi";
 import Image from "next/image";
+import { imageUrl } from "../helper/web_url.js";
 
 function ImageList({
   imagepath,
@@ -35,7 +36,7 @@ function ImageList({
     >
       <div className="group inline-flex relative h-[120px] w-[213px]">
         <Image
-          src={imagepath}
+          src={imageUrl(imagepath)}
           // src={"/shoes.jpg"}
           fill={true}
           className=" duration-300 relative rounded-md"

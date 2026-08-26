@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import Image from "next/image";
 import { AiOutlineSelect } from "react-icons/ai";
 import { BsDatabaseAdd } from "react-icons/bs";
+import { imageUrl } from "../helper/web_url.js";
 
 
 
@@ -21,7 +22,7 @@ function ImageList({
     >
       <div className="group inline-flex relative h-[167px] w-[300px]">
         <Image
-          src={imagepath}
+          src={imageUrl(imagepath)}
           // src={"/shoes.jpg"}
           fill={true}
           className="hover:ease-in-out duration-300 relative rounded-md group-hover:opacity-80"

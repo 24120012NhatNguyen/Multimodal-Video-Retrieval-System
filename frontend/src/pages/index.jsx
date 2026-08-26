@@ -6,13 +6,22 @@ import LoadingIcon from "../components/LoadingIcon.jsx";
 import ImageListVideo from "../components/ImageListVideo.jsx";
 import Panel from "../components/Panel.jsx";
 import Tabs from "../components/Tabs.jsx";
-import { web_url, socket_url, server, session } from "../helper/web_url.js";
+import {
+  web_url,
+  socket_url,
+  server,
+  session,
+  apiHeaders,
+  api_token,
+} from "../helper/web_url.js";
 import VideoWrapper from "../components/VideoWrapper.jsx";
 import FullScreen from "../components/FullScreen";
 import Questions from "../components/Questions.jsx";
 import Lock from "../components/Lock.jsx";
 import PageButton from "../components/PageButton.jsx";
 import Info from "../components/Info.jsx";
+import ExplainBadge from "../components/ExplainBadge.jsx";
+import QueryKind from "../components/QueryKind.jsx";
 import dynamic from "next/dynamic";
 const SpeechToText = dynamic(() => import("../Library/SpeechToText"), {
   ssr: false,
@@ -64,12 +73,19 @@ function Index() {
   const [infoDialog, setInfoDialog] = useState({});
   const [isShown, setIsShown] = useState(false);
   const [searchSpace, setSearchSpace] = useState(0);
+  // Ly do moi video noi len: thu hang cua no o tung kenh bang chung.
+  const [searchMeta, setSearchMeta] = useState(null);
+  const [autofilling, setAutofilling] = useState(false);
+  // "auto" = de he thong phan loai; "on"/"off" = nguoi dung ep.
+  const [alignMode, setAlignMode] = useState("auto");
+  // Dap an dang co cua cau hoi dang chon -- can de auto-fill giu lai cac dong
+  // "manual" thay vi ghi de mat.
+  const [submittedInfo, setSubmittedInfo] = useState(null);
+  const questionNameRef = useRef("");
 
   const fetchGetObj = {
     method: "get",
-    headers: new Headers({
-      "ngrok-skip-browser-warning": "69420",
-    }),
+    headers: apiHeaders(),
   };
 
   // useEffect(() => {
@@ -85,10 +101,7 @@ function Index() {
     setQuestionsLoading(true);
     fetch(`${socket_url}/getquestions`, {
       method: "post",
-      headers: new Headers({
-        "ngrok-skip-browser-warning": "69420",
-        "Content-Type": "application/json",
-      }),
+      headers: apiHeaders(),
       body: JSON.stringify({
         username: username,
       }),
@@ -105,7 +118,10 @@ function Index() {
   };
 
   const socketSubmit = (res) => {
-      getOwnedQuestions(username);
+    getOwnedQuestions(username);
+    if (res && res.data && res.questionName === questionNameRef.current) {
+      setSubmittedInfo(res.data);
+    }
   };
 
   useEffect(() => {
@@ -137,10 +153,7 @@ function Index() {
     // }, 200);
     fetch(`${socket_url}/getignore`, {
       method: "post",
-      headers: new Headers({
-        "ngrok-skip-browser-warning": "69420",
-        "Content-Type": "application/json",
-      }),
+      headers: apiHeaders(),
       body: JSON.stringify({
         questionName: questionName,
       }),
@@ -163,6 +176,41 @@ function Index() {
   };
 
   useEffect(() => {
+    questionNameRef.current = questionName;
+    setSubmittedInfo(null);
+    if (questionName) socket.emit("viewsubmitted", { questionName: questionName });
+  }, [questionName]);
+
+  useEffect(() => {
+    const onView = (res) => {
+      if (res && res.data && res.questionName === questionNameRef.current) {
+        setSubmittedInfo(res.data);
+      }
+    };
+    socket.on("viewsubmitted", onView);
+    socket.on("reorder", onView);
+    return () => {
+      socket.removeAllListeners("viewsubmitted");
+      socket.removeAllListeners("reorder");
+    };
+  }, []);
+
+  // Chi cac dong nguoi dung tu chon moi duoc giu lai khi auto-fill chay lai.
+  const manualAnswers = (submittedInfo ? submittedInfo.lst_idxs || [] : [])
+    .map((key, i) => ({
+      key: key,
+      source: (submittedInfo.lst_sources || [])[i] || "manual",
+      video_id: (submittedInfo.lst_video_idxs || [])[i],
+      frame_idx: (submittedInfo.lst_keyframe_idxs || [])[i],
+    }))
+    .filter((e) => e.source === "manual" && e.video_id != null)
+    .map((e) => ({
+      video_id: e.video_id,
+      frame_idx: e.frame_idx,
+      source: "manual",
+    }));
+
+  useEffect(() => {
     if (username !== "") getOwnedQuestions(username);
   }, [username]);
 
@@ -173,17 +221,16 @@ function Index() {
   const handleTranslate = (text) => {
     fetch(`${web_url}/translate`, {
       method: "post",
-      headers: new Headers({
-        "ngrok-skip-browser-warning": "69420",
-        "Content-Type": "application/json",
-      }),
+      headers: apiHeaders(),
       body: JSON.stringify({
         textquery: text,
       }),
     })
       .then((res) => res.json())
       .then((data) => {
-        setTranslate(data);
+        // Endpoint co the tra ve object loi; dat thang object vao state se lam
+        // React nem "Objects are not valid as a React child".
+        setTranslate(typeof data === "string" ? data : "");
       })
       .catch((e) => console.log(e));
   };
@@ -231,12 +278,19 @@ function Index() {
         : 2;
     fetch(`${web_url}/textsearch`, {
       method: "post",
-      headers: new Headers({
-        "ngrok-skip-browser-warning": "69420",
-        "Content-Type": "application/json",
-      }),
+      headers: apiHeaders(),
       body: JSON.stringify({
+        // Che do hop nhat cap video: xep hang video bang nhieu kenh bang chung
+        // roi moi xuong frame. Duong cu (xep hang frame truc tiep) chay tren
+        // dict/ da bi xoa nen khong con dung duoc.
+        fusion: true,
+        decompose: true,
+        // null = de he thong tu quyet dinh; true/false = nguoi dung ep.
+        align: alignMode === "auto" ? null : alignMode === "on",
         textquery: query,
+        // Kenh BM25 an tieng Viet; query_en de backend tu phan ra/dich sang
+        // tieng Anh cho SigLIP (khong duoc gui tieng Viet vao SigLIP).
+        query_vi: query,
         filtervideo: filtervideo,
         nomic: nomic,
         clipv2: clipv2,
@@ -251,15 +305,29 @@ function Index() {
       }),
     })
       .then((data) => data.json())
-      .then((data) => {
+      .then((raw) => {
+        // Che do fusion tra ve object {videos, channels, errors, query};
+        // cac duong cu tra ve mang thuan. Chap nhan ca hai.
+        const data = Array.isArray(raw) ? raw : raw && raw.videos;
         if (!Array.isArray(data)) {
-          const detail = data && data.detail;
+          const detail = raw && (raw.detail || raw.error);
           const message = Array.isArray(detail)
             ? detail.map((err) => err.msg || JSON.stringify(err)).join("\n")
-            : detail || JSON.stringify(data);
+            : detail || JSON.stringify(raw);
           alert("Textsearch Failed: " + message);
           setLoading(false);
           return;
+        }
+        if (!Array.isArray(raw)) {
+          setSearchMeta({
+            channels: raw.channels || {},
+            errors: raw.errors || {},
+            query: raw.query || null,
+            nRanked: raw.n_videos_ranked || 0,
+            aligned: !!raw.aligned,
+            alignSkipped: raw.align_skipped || null,
+            alignDecidedBy: raw.align_decided_by || null,
+          });
         }
         linksArray.push({
           data: data,
@@ -293,10 +361,7 @@ function Index() {
     if (ignore) {
       fetch(`${socket_url}/getignore`, {
         method: "post",
-        headers: new Headers({
-          "ngrok-skip-browser-warning": "69420",
-          "Content-Type": "application/json",
-        }),
+        headers: apiHeaders(),
         body: JSON.stringify({
           questionName: questionName,
         }),
@@ -326,10 +391,7 @@ function Index() {
   const getRec = () => {
     fetch(`${web_url}/getrec`, {
       method: "post",
-      headers: new Headers({
-        "ngrok-skip-browser-warning": "69420",
-        "Content-Type": "application/json",
-      }),
+      headers: apiHeaders(),
       body: JSON.stringify({ text: query }),
     })
       .then((data) => data.json())
@@ -411,10 +473,7 @@ function Index() {
     setLoading(true);
     fetch(`${web_url}/feedback`, {
       method: "post",
-      headers: new Headers({
-        "ngrok-skip-browser-warning": "69420",
-        "Content-Type": "application/json",
-      }),
+      headers: apiHeaders(),
       body: JSON.stringify({
         lst_neg_idxs: feedback.lst_neg_idxs,
         lst_pos_idxs: feedback.lst_pos_idxs,
@@ -556,10 +615,7 @@ function Index() {
       showDialog("success", "Auto Fetching...");
       fetch(`${socket_url}/getignore`, {
         method: "post",
-        headers: new Headers({
-          "ngrok-skip-browser-warning": "69420",
-          "Content-Type": "application/json",
-        }),
+        headers: apiHeaders(),
         body: JSON.stringify({
           questionName: questionName,
         }),
@@ -579,12 +635,13 @@ function Index() {
               : 2;
           fetch(`${web_url}/textsearch`, {
             method: "post",
-            headers: new Headers({
-              "ngrok-skip-browser-warning": "69420",
-              "Content-Type": "application/json",
-            }),
+            headers: apiHeaders(),
             body: JSON.stringify({
+              fusion: true,
+              decompose: true,
+              align: alignMode === "auto" ? null : alignMode === "on",
               textquery: query,
+              query_vi: query,
               filtervideo: filtervideo,
               nomic: nomic,
               clipv2: clipv2,
@@ -599,9 +656,13 @@ function Index() {
             }),
           })
             .then((data) => data.json())
-            .then((data) => {
+            .then((raw) => {
+              const data = Array.isArray(raw) ? raw : raw && raw.videos;
               if (!Array.isArray(data)) {
-                showDialog("failure", "Auto Fetch Failed: " + JSON.stringify(data));
+                showDialog(
+                  "failure",
+                  "Auto Fetch Failed: " + JSON.stringify(raw && (raw.error || raw))
+                );
                 return;
               }
               showDialog("success", "Auto Fetched!");
@@ -625,6 +686,86 @@ function Index() {
           alert("Auto Fetch Failed!" + e);
         });
     }
+  };
+
+  // Viec 3 -- lap day 100 dong. Tinh o app.py (noi co ma tran dac trung) roi
+  // day ket qua sang socket_app de luu. Cac dong "manual" giu nguyen o dau.
+  const handleAutofill = () => {
+    if (questionName === "") {
+      alert("Chọn câu hỏi trước");
+      return;
+    }
+    if (!socket.connected) {
+      alert("Mất kết nối tới socket server (" + socket_url + ").");
+      return;
+    }
+    const candidates = [];
+    (videos || []).forEach((v) => {
+      const vi = v.video_info;
+      if (!vi) return;
+      vi.lst_keyframe_idxs.forEach((fi, i) => {
+        candidates.push({
+          video_id: v.video_id,
+          frame_idx: fi,
+          score: vi.lst_scores[i] || 0.5,
+        });
+      });
+    });
+    if (candidates.length === 0) {
+      alert("Chưa có kết quả tìm kiếm nào để lấp. Tìm kiếm trước đã.");
+      return;
+    }
+
+    setAutofilling(true);
+    fetch(`${socket_url}/getignore`, {
+      method: "post",
+      headers: apiHeaders(),
+      body: JSON.stringify({ questionName: questionName }),
+    })
+      .then((r) => r.json())
+      .then((ig) => {
+        const ignore = (ig.data || []).map((key) => {
+          const at = String(key).lastIndexOf("#");
+          return at < 0
+            ? null
+            : {
+                video_id: String(key).slice(0, at),
+                frame_idx: parseInt(String(key).slice(at + 1), 10),
+              };
+        });
+        return fetch(`${web_url}/autofill`, {
+          method: "post",
+          headers: apiHeaders(),
+          body: JSON.stringify({
+            manual: manualAnswers,
+            candidates: candidates,
+            ignore: ignore.filter(Boolean),
+            target: 100,
+          }),
+        });
+      })
+      .then((r) => r.json())
+      .then((res) => {
+        if (!res.answers) {
+          alert("Auto-fill lỗi: " + JSON.stringify(res));
+          setAutofilling(false);
+          return;
+        }
+        socket.emit("setanswers", {
+          questionName: questionName,
+          user: username,
+          answers: res.answers,
+        });
+        showDialog(
+          "success",
+          `Đã lấp ${res.n} dòng (${res.n_manual} thủ công, ${res.n_autofill} tự động)`
+        );
+        setAutofilling(false);
+      })
+      .catch((e) => {
+        alert("Auto-fill lỗi: " + e);
+        setAutofilling(false);
+      });
   };
 
   const showDialog = (type, message) => {
@@ -922,6 +1063,20 @@ function Index() {
                 setQuestionName={setQuestionName}
               />
             </div>
+            <QueryKind
+              meta={searchMeta}
+              alignMode={alignMode}
+              setAlignMode={setAlignMode}
+            />
+            <button
+              type="button"
+              disabled={autofilling}
+              title="Lấp đủ 100 dòng đáp án bằng MMR trên kết quả đang hiển thị. Các dòng bạn tự chọn được giữ nguyên ở đầu."
+              onClick={handleAutofill}
+              className="text-xs px-1.5 h-6 rounded-md bg-slate-700 hover:bg-amber-700 hover:ring-1 ring-amber-400 transition text-slate-300 disabled:opacity-50"
+            >
+              {autofilling ? "..." : "Lấp 100"}
+            </button>
             <button
               type="button"
               title="Export CSV cho câu hỏi đang chọn"
@@ -1165,6 +1320,11 @@ function Index() {
                   </>
                 ) : (
                   <>
+                    <ExplainBadge
+                      explain={video.explain}
+                      why={video.why}
+                      rrfScore={video.rrf_score}
+                    />
                     <VideoWrapper
                       id={video.video_id}
                       handleIgnore={() => handleIgnore(video_info.lst_idxs)}

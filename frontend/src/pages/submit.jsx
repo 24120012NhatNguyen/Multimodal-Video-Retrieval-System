@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import React from "react";
-import { socket_url, web_url, server, session } from "../helper/web_url";
+import { socket_url, web_url, server, session, apiHeaders } from "../helper/web_url";
 import ImageListSubmit from "../components/ImageListSubmit";
 import LoadingIcon from "../components/LoadingIcon";
 import Info from "../components/Info";
@@ -55,19 +55,14 @@ function Submit() {
 
   const fetchGetObj = {
     method: "get",
-    headers: new Headers({
-      "ngrok-skip-browser-warning": "69420",
-    }),
+    headers: apiHeaders(),
   };
 
   const getOwnedQuestions = (username) => {
     setQuestionsLoading(true);
     fetch(`${socket_url}/getquestions`, {
       method: "post",
-      headers: new Headers({
-        "ngrok-skip-browser-warning": "69420",
-        "Content-Type": "application/json",
-      }),
+      headers: apiHeaders(),
       body: JSON.stringify({
         username: username,
       }),

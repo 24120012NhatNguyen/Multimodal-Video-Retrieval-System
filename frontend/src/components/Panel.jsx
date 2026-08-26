@@ -4,7 +4,7 @@ import React from "react";
 import DragObject from "./DragObject.jsx";
 import { icons } from "../helper/icons.js";
 import Icon from "./Icon.jsx";
-import { web_url, socket_url } from "../helper/web_url.js";
+import { web_url, socket_url, apiHeaders } from "../helper/web_url.js";
 import ImageListVideoPanel from ".//ImageListVideoPanel.jsx";
 import GetTagRec from "./GetTagRec";
 import LoadingIcon from "./LoadingIcon";
@@ -57,9 +57,7 @@ function panel({
 
   const fetchGetObj = {
     method: "get",
-    headers: new Headers({
-      "ngrok-skip-browser-warning": "69420",
-    }),
+    headers: apiHeaders(),
   };
 
   const handleCreate = (type) => {
@@ -119,10 +117,7 @@ function panel({
   const panelFetch = (ignoreIndexes) => {
     fetch(`${web_url}/panel`, {
       method: "post",
-      headers: new Headers({
-        "ngrok-skip-browser-warning": "69420",
-        "Content-Type": "application/json",
-      }),
+      headers: apiHeaders(),
       body: JSON.stringify({
         tags: tags,
         dragObject: dragObject,
@@ -171,10 +166,7 @@ function panel({
     if (ignore) {
       fetch(`${socket_url}/getignore`, {
         method: "post",
-        headers: new Headers({
-          "ngrok-skip-browser-warning": "69420",
-          "Content-Type": "application/json",
-        }),
+        headers: apiHeaders(),
         body: JSON.stringify({
           questionName: questionName,
         }),

@@ -70,6 +70,18 @@ class FusionConfig:
     # So frame tra ve cho luoi ket qua.
     frame_topk: int = 200
 
+    # --- Dong hang chuoi su kien (DP) -------------------------------------
+    # Chi chay khi truy van la "chuoi hanh dong chung chung": tung menh de deu
+    # pho bien, chi THU TU + khoang cach THOI GIAN moi phan biet duoc video.
+    # Truy van co anchor (ten rieng, chu tren bien hieu) thi tim phang da du.
+    dp_enabled: bool = True
+    # Khoang thoi gian toi da giua hai su kien lien tiep. 30s vua du cho mot
+    # chuoi canh trong ban tin; nam trong bang hang so can DO chu khong doan.
+    dp_delta_sec: float = 30.0
+    dp_gamma: float = 0.5
+    # So video dua vao DP (DP chay ~6ms/video nen day khong phai nut co chai).
+    dp_video_topn: int = 30
+
     # --- Viec 3: auto-fill ------------------------------------------------
     autofill_target: int = 100
     mmr_lambda: float = 0.7          # lambda trong cong thuc MMR
