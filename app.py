@@ -48,10 +48,7 @@ def fusion_search(request: TextSearchRequest):
     """query -> nhieu kenh -> rrf() -> top N video -> frame cua nhung video do."""
     svc = get_fusion()
     if svc is None:
-        return {
-            "videos": [],
-            "error": f"tang hop nhat khong nap duoc: {_fusion_state.get('error', 'Unknown error')}",
-        }
+        return []
 
     from retrieval.query import decompose
 
@@ -72,11 +69,63 @@ def fusion_search(request: TextSearchRequest):
         channels=request.channels,
         ignore_gidx=ignore_gidx,
     )
-    result["mode"] = "fusion"
-    result["query"] = dq.as_dict()
-    result["query_en"] = dq.query_en
-    result["query_vi"] = dq.query_vi
-    return result
+    
+    # Convert result to legacy array format for frontend
+    result_dict = {}
+    for vid, fid, score in zip(result.get("videos", []), result.get("frame_idxs", []), result.get("scores", [])):
+        if vid not in result_dict:
+            result_dict[vid] = {
+                "lst_keyframe_paths": [],
+                "lst_idxs": [],
+                "lst_keyframe_idxs": [],
+                "lst_scores": [],
+            }
+        
+        image_path = f"/static/images/keyframe/{vid}/{int(fid):06d}.jpg"
+        pseudo_idx = f"{vid}_{fid}"
+        
+        result_dict[vid]["lst_keyframe_paths"].append(image_path)
+        result_dict[vid]["lst_idxs"].append(pseudo_idx)
+        result_dict[vid]["lst_keyframe_idxs"].append(int(fid))
+        result_dict[vid]["lst_scores"].append(float(score))
+        
+    frontend_array = [
+        {"video_id": key, "video_info": value} for key, value in result_dict.items()
+    ]
+    frontend_array = sorted(
+        frontend_array, key=lambda x: x["video_info"]["lst_scores"][0], reverse=True
+    )
+    
+    return frontend_array
+
+# --- Stub Endpoints to prevent frontend crashes ---
+@app.get("/getrec")
+def getrec():
+    return []
+
+@app.get("/relatedimg")
+def relatedimg():
+    return []
+
+@app.post("/feedback")
+def feedback():
+    return []
+
+@app.post("/translate")
+def translate(request: dict):
+    return request.get("textquery", "")
+
+@app.get("/getvideoshot")
+def getvideoshot(imgid: str):
+    return {
+        "collection": "",
+        "video_id": "",
+        "video_name": "",
+        "shots": {},
+        "selected_shot": "0",
+    }
+# --------------------------------------------------
+
 
 @app.post("/keyframe_context")
 def keyframe_context(request: KeyframeContextRequest):
