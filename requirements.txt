@@ -1,0 +1,17 @@
+uvicorn[standard]
+fastapi[standard]
+httpx>=0.24.0
+pydantic
+python-socketio==5.13.0
+tqdm
+regex
+numpy
+pandas
+faiss-cpu
+pillow
+transformers
+einops==0.8.1
+deep-translator
+google-genai
+torch
+scipy
