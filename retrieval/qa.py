@@ -14,6 +14,14 @@ Ban truoc co ba diem yeu, ban nay sua het:
      canh tinh, chua chac lien quan den CAU HOI. Gio cham diem tong hop
      do net + do khop ngu nghia giua frame va cau hoi (SigLIP), khi co encoder.
 
+     KEM THEO hai rao can ma ban truoc khong co:
+       · cau hoi phai duoc DICH sang tieng Anh truoc. SigLIP huan luyen chu yeu
+         tieng Anh; dua thang tieng Viet vao thi cosine van ra so dep nhung vo
+         nghia -- dung loai loi im lang ma he thong nay phai tranh.
+       · cau hoi phai duoc CHIA cho vua 64 token. Do tren bo eval: cau hoi tieng
+         Viet dai 194-536 token, tuc tokenizer vut di phan lon noi dung.
+     Khong dich duoc -> BO HAN phan cham diem ngu nghia, chi con do net.
+
   3. Khong dua ASR. Loi thoai la nguon tra loi manh nhat trong ban tin --
      ten nguoi, con so, dia danh deu duoc doc len chu khong hien tren hinh.
 """
@@ -106,7 +114,7 @@ def solve_qa(video_id, question, image_paths, ocr_texts, asr_texts=(), window=No
 
 # ---------------------------------------------------------------------------
 def pick_frames(video_id, start_pts, end_pts, store, n=3, question=None,
-                encoder=None):
+                encoder=None, question_en=None):
     """Chon toi da n frame trong [start_pts, end_pts] de dua cho VLM.
 
     Xep hang bang do khop voi CAU HOI (SigLIP) cong do net. Chi lay do net nhu
@@ -135,15 +143,27 @@ def pick_frames(video_id, start_pts, end_pts, store, n=3, question=None,
         if hi > lo:
             score += W_SHARPNESS * np.nan_to_num((lap - lo) / (hi - lo))
 
-    if question and encoder is not None:
+    qen = (question_en or "").strip()
+    if not qen and question:
+        # Dich (co bo nho dem tren dia nen tat dinh va khong ton mang lan hai).
+        try:
+            from retrieval.query import _translate
+
+            qen = (_translate(question) or "").strip()
+        except Exception:
+            qen = ""
+
+    if qen and encoder is not None:
         try:
             store.assert_encoder_matches(encoder)
             gid = sub["gidx"].to_numpy(dtype=int)
-            v = encoder.encode_texts([question])[0]
-            rel = store.X[gid] @ v
-            lo, hi = rel.min(), rel.max()
-            if hi > lo:
-                score += W_RELEVANCE * (rel - lo) / (hi - lo)
+            # encode_query, KHONG phai encode_texts: tu dong chia cho vua 64 token.
+            v = encoder.encode_query(qen)
+            if v is not None:
+                rel = store.X[gid] @ v
+                lo, hi = rel.min(), rel.max()
+                if hi > lo:
+                    score += W_RELEVANCE * (rel - lo) / (hi - lo)
         except Exception:
             # Khong cham diem ngu nghia duoc thi van con do net -- khong hong ca Q/A.
             pass
@@ -155,8 +175,8 @@ def pick_frames(video_id, start_pts, end_pts, store, n=3, question=None,
 
 
 def extract_best_frame(video_id, start_pts, end_pts, store, question=None,
-                       encoder=None):
+                       encoder=None, question_en=None):
     """Mot frame duy nhat -- giu cho client cu goi theo ten ham nay."""
     got = pick_frames(video_id, start_pts, end_pts, store, n=1,
-                      question=question, encoder=encoder)
+                      question=question, encoder=encoder, question_en=question_en)
     return got[0] if got else None

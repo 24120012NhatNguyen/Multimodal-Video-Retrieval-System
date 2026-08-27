@@ -14,6 +14,12 @@ sentencepiece
 protobuf
 einops==0.8.1
 deep-translator
+# LLM/VLM. `anthropic` la nha cung cap MAC DINH (retrieval/config.py:
+# LLM_PROVIDER=anthropic). Thieu no thi tren Kaggle bao "No module named
+# 'anthropic'" va he thong tut xuong che do khong-LLM -- van tim kiem duoc
+# nhung mat phan ra truy van va Q/A.
+anthropic>=1.1.0
+# Duong lui, chi dung khi LLM_PROVIDER=gemini.
 google-genai
 torch
 scipy

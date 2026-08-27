@@ -298,13 +298,37 @@ class PanelSearch:
                 try:
                     self.store.assert_encoder_matches(self.encoder)
                     gid = sub["gidx"].to_numpy(dtype=int)
-                    v = self.encoder.encode_texts([q])[0]
+
+                    # O nay nhan van ban tu do cua nguoi dung, tuc la TIENG VIET
+                    # va co the RAT DAI. Hai rao can, thieu cai nao cung thanh
+                    # loi im lang:
+                    #   · dich sang tieng Anh -- SigLIP huan luyen tieng Anh,
+                    #     dua tieng Viet vao thi cosine van dep ma vo nghia
+                    #   · encode_query thay vi encode_texts -- tu chia cho vua
+                    #     64 token thay vi de tokenizer cat cut khong bao gi
+                    qen, dich = q, False
+                    try:
+                        from retrieval.query import _translate
+
+                        t = (_translate(q) or "").strip()
+                        if t and t.lower() != q.strip().lower():
+                            qen, dich = t, True
+                    except Exception:
+                        pass
+
+                    v = self.encoder.encode_query(qen)
+                    if v is None:
+                        raise ValueError("truy van rong")
                     sc = self.store.X[gid] @ v
                     for r, s in zip(rows, sc):
                         r["score"] = float(s)
                     rows.sort(key=lambda r: -r["score"])
-                    message = (f"xep theo do khop voi {q!r}; frame dau la khop "
-                               f"nhat trong dai")
+                    n_manh = len(self.encoder.pack_text(qen))
+                    message = (f"xep theo do khop voi {qen!r}"
+                               + (" (da dich)" if dich else "")
+                               + (f", chia lam {n_manh} manh cho vua gioi han token"
+                                  if n_manh > 1 else "")
+                               + "; frame dau la khop nhat trong dai")
                 except Exception as e:
                     message = f"khong tim duoc trong dai: {type(e).__name__}: {e}"
 

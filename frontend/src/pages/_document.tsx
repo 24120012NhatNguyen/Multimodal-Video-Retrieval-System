@@ -1,16 +1,20 @@
 import { Html, Head, Main, NextScript } from "next/document";
-// import { Inter } from "next/font/google"
-
-// const inter = Inter({ subsets: ["latin"] })
 
 export default function Document() {
   return (
-    <Html lang="en">
+    <Html lang="vi">
       <Head>
-        <meta charSet="UTF-8"></meta>
+        <meta charSet="UTF-8" />
+        {/* IBM Plex: phủ đủ dấu tiếng Việt, và bản Mono cho id/số liệu xếp cột. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+        />
       </Head>
-      <title>US_SHAREHOLDER</title>
-      <body className={`text-slate-100 min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black`}>
+      <title>AIC 2026 · Truy vấn video</title>
+      <body className="min-h-screen">
         <Main />
         <NextScript />
       </body>

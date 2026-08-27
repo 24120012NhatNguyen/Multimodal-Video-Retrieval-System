@@ -133,10 +133,29 @@ class FusionConfig:
 
     # --- Viec 3: auto-fill ------------------------------------------------
     autofill_target: int = 100
-    mmr_lambda: float = 0.7          # lambda trong cong thuc MMR
-    max_per_video: int = 5           # m: so frame toi da moi video dong gop
-    min_gap_sec: float = 2.0         # hai frame cung video cach nhau it nhat
-    neighbour_window_sec: float = 3.0  # mo rong lan can quanh frame thu cong
+    # So o dau GIU NGUYEN thu hang tim kiem. 20 chinh la nguong k = 20 trong
+    # cong thuc cham diem: cac o 1-20 dang 0,60-1,00 diem moi o, khong danh cuoc
+    # chung vao da dang hoa. Do: xem ghi chu dau retrieval/autofill.py.
+    autofill_head: int = 20
+    # Tu o head+1 tro di, hai frame cung video phai cach nhau it nhat ngan nay.
+    # Vi pham thi bi day xuong cuoi, khong bi loai.
+    #
+    # 4s khong phai so bua: dap an duoc tinh la dung khi frame nam trong dung sai
+    # +/-2s, tuc moi frame PHU mot cua so rong 4s. Lat dung 4s thi hai o lien
+    # tiep phu hai khoang khong chong nhau va khong ho -- moi o mua duoc nhieu
+    # dien tich thoi gian nhat. Do: gap 4s -> Final 0.6286; gap 8/15/30s -> 0.5714.
+    autofill_tail_gap_sec: float = 4.0
+    # So ung vien lay ve de lap 100 dong. LON HON so frame hien tren luoi: bai
+    # nop khong nen bi gioi han boi thu nguoi dung dang nhin thay. Do: pool 500
+    # -> Final 0.6000, pool 3000 -> 0.6286 (Q5 lot vao o hang 87).
+    autofill_pool_topk: int = 3000
+    # --- cac hang so cua co che MMR cu, khong con duoc dung -----------------
+    # Giu lai de cau hinh cu doc vao khong bao loi. MMR da bi go: do duoc no lam
+    # Final Score tut tu 0.5714 xuong 0.3429.
+    mmr_lambda: float = 0.7
+    max_per_video: int = 5
+    min_gap_sec: float = 2.0
+    neighbour_window_sec: float = 3.0
 
     # --- Viec 4: dung sai cau noi ----------------------------------------
     # Object cua BTC neo vao keyframe cua HO, khong trung keyframe cua ta; bac

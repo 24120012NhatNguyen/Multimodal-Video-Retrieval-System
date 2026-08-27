@@ -1,26 +1,27 @@
 import React from "react";
+import Segmented from "./ui/Segmented.jsx";
 
 // Công tắc từng kênh bằng chứng, do NGƯỜI DÙNG gạt.
 //
-//   auto  hệ thống tự quyết theo loại truy vấn (đo được: truy vấn thị giác thì
-//         mọi trọng số văn bản đều làm kết quả tệ đi, nên auto đặt chúng = 0)
-//   on    ép bật, kể cả khi hệ thống cho là kênh này không có tín hiệu
-//   off   ép tắt
+//   Tự   hệ thống tự quyết theo loại truy vấn (đo được: truy vấn thị giác thì
+//        mọi trọng số văn bản đều làm kết quả tệ đi, nên Tự đặt chúng = 0)
+//   Bật  ép bật, kể cả khi hệ thống cho là kênh này không có tín hiệu
+//   Tắt  ép tắt
 //
 // Người ngồi trước màn hình nhìn thấy kết quả, bộ phân loại thì không — nên ý
 // người dùng thắng.
 
 const CHANNELS = [
-  ["siglip", "Hình ảnh", "SigLIP — nội dung nhìn thấy trong khung hình"],
+  ["siglip", "Hình ảnh", "Nội dung nhìn thấy trong khung hình (SigLIP)"],
   ["meta", "Metadata", "Tiêu đề / mô tả / từ khoá của video"],
-  ["asr", "ASR", "Lời nói trong video (Whisper)"],
-  ["ocr", "OCR", "Chữ hiện trên màn hình"],
+  ["asr", "Lời nói", "Tiếng nói trong video (ASR) — bật khi tên riêng hoặc con số chỉ được đọc lên"],
+  ["ocr", "Chữ trên hình", "Chữ hiện trên màn hình — bật khi truy vấn nhắc tới biển hiệu, dòng chữ"],
 ];
 
-const MODES = [
-  ["auto", "Tự"],
-  ["on", "Bật"],
-  ["off", "Tắt"],
+const OPTS = [
+  { value: "auto", label: "Tự" },
+  { value: "on", label: "Bật", tone: "on" },
+  { value: "off", label: "Tắt", tone: "off" },
 ];
 
 function ChannelModes({ modes, setModes, meta }) {
@@ -35,49 +36,35 @@ function ChannelModes({ modes, setModes, meta }) {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 px-2 py-1 text-xs rounded-md bg-slate-900/80 text-slate-300">
-      <span className="text-slate-500">Kênh bằng chứng:</span>
+    <div className="grp flex-wrap gap-x-3 gap-y-1.5">
+      <span className="grp__label">Kênh bằng chứng</span>
       {CHANNELS.map(([ch, label, hint]) => {
-        const cur = m[ch] || "auto";
         const w = used ? used[ch] : undefined;
         return (
-          <span key={ch} className="flex items-center gap-0.5" title={hint}>
+          <span key={ch} className="inline-flex items-center gap-1.5" title={hint}>
             <span
-              className={`mr-0.5 ${
+              className={`text-[11.5px] ${
                 w === undefined
-                  ? "text-slate-500"
+                  ? "text-[color:var(--muted)]"
                   : w > 0
-                  ? "text-emerald-400"
-                  : "text-slate-600 line-through"
+                  ? "text-[color:var(--good)]"
+                  : "text-[color:var(--muted)] line-through"
               }`}
             >
               {label}
-              {w !== undefined && w > 0 ? ` ×${w}` : ""}
+              {w > 0 && <span className="mono ml-1 opacity-80">×{w}</span>}
             </span>
-            {MODES.map(([v, t]) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => set(ch, v)}
-                className={`px-1 py-0.5 rounded transition ${
-                  cur === v
-                    ? v === "off"
-                      ? "bg-rose-700 text-white"
-                      : v === "on"
-                      ? "bg-emerald-700 text-white"
-                      : "bg-slate-600 text-white"
-                    : "bg-slate-800 hover:bg-slate-700"
-                }`}
-              >
-                {t}
-              </button>
-            ))}
+            <Segmented
+              value={m[ch] || "auto"}
+              onChange={(v) => set(ch, v)}
+              options={OPTS}
+            />
           </span>
         );
       })}
       {meta && meta.weightsNote && (
-        <span className="text-amber-400" title={meta.weightsNote}>
-          ⚠ đã lùi trọng số
+        <span className="chip chip--warn" title={meta.weightsNote}>
+          đã lùi trọng số
         </span>
       )}
     </div>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import React from "react";
 import { AiOutlineSearch } from "react-icons/ai";
-import Select from "../components/Select.jsx";
+import Select, { FILTER_OPTIONS } from "../components/Select.jsx";
 import LoadingIcon from "../components/LoadingIcon.jsx";
 import ImageListVideo from "../components/ImageListVideo.jsx";
 import Panel from "../components/Panel.jsx";
@@ -22,6 +22,11 @@ import Info from "../components/Info.jsx";
 import ExplainBadge from "../components/ExplainBadge.jsx";
 import QueryKind from "../components/QueryKind.jsx";
 import ChannelModes from "../components/ChannelModes.jsx";
+import Button from "../components/ui/Button.jsx";
+import Segmented from "../components/ui/Segmented.jsx";
+import Field from "../components/ui/Field.jsx";
+import Group from "../components/ui/Group.jsx";
+import Check from "../components/ui/Check.jsx";
 import dynamic from "next/dynamic";
 const SpeechToText = dynamic(() => import("../Library/SpeechToText"), {
   ssr: false,
@@ -40,7 +45,10 @@ const socket = io(socket_url, {
 });
 
 function Index() {
-  const [videos, setVideos] = useState({});
+  // [] chứ KHÔNG phải {}: mọi chỗ dưới đây đọc videos.length và videos.slice().
+  // Khởi tạo bằng object thì videos.length là undefined, nên nhánh "chưa có kết
+  // quả" không bao giờ chạy và vùng kết quả chỉ là một khoảng đen.
+  const [videos, setVideos] = useState([]);
   const [id, setId] = useState([]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState(false);
@@ -50,7 +58,7 @@ function Index() {
   const [queryHistory, setQueryHistory] = useState([]);
   const [k, setK] = useState(500);
   const [selected, setSelected] = useState(queryHistory[0]);
-  const [selectedFilter, setSelectedFilter] = useState({ name: "No Filter" });
+  const [selectedFilter, setSelectedFilter] = useState(FILTER_OPTIONS[0]);
   const [relatedObj, setRelatedObj] = useState({});
   const [feedbackMode, setFeedbackMode] = useState(false);
   const [page, setPage] = useState(0);
@@ -79,6 +87,13 @@ function Index() {
   // Công tắc từng kênh do NGƯỜI DÙNG gạt: {asr|ocr|meta|siglip: "on"|"off"}.
   // Thiếu khoá nào thì khoá đó là "auto" (hệ thống tự quyết).
   const [channelModes, setChannelModes] = useState({});
+  // Phân rã truy vấn bằng LLM. MẶC ĐỊNH TẮT — đo được là làm giảm điểm
+  // (0.60 -> 0.46 theo công thức chấm của BTC). Vẫn để người dùng bật khi gặp
+  // truy vấn khó mà dịch máy dịch sai.
+  const [useLlm, setUseLlm] = useState(false);
+  // Bảng object là công cụ PHỤ nhưng đang chiếm 728px cố định — gần 40% màn
+  // hình 1920. Thu gọn được, và mặc định gọn.
+  const [panelOpen, setPanelOpen] = useState(false);
   // Dap an dang co cua cau hoi dang chon -- can de auto-fill giu lai cac dong
   // "manual" thay vi ghi de mat.
   const [submittedInfo, setSubmittedInfo] = useState(null);
@@ -127,8 +142,13 @@ function Index() {
 
   useEffect(() => {
     if (!localStorage.getItem("username")) {
-      alert("Input username (only first time)");
-      document.getElementById("username").focus();
+      // Không dùng alert(): hộp thoại chặn cả luồng dựng trang, và người dùng
+      // gặp nó mỗi lần mở tab mới. Mở khoá ô tên + focus là đủ nói.
+      setLockUsernameInput(false);
+      setTimeout(() => {
+        const el = document.getElementById("username");
+        if (el) el.focus();
+      }, 0);
     } else {
       setUsername(localStorage.getItem("username"));
       getOwnedQuestions(localStorage.getItem("username"));
@@ -271,12 +291,8 @@ function Index() {
   };
 
   const textSearchFetch = (ignoreIndexes) => {
-    let filtervideo =
-      selectedFilter.name === "No Filter"
-        ? 0
-        : selectedFilter.name === "Filter Forwards"
-        ? 1
-        : 2;
+    // So theo `value`, không theo nhãn hiển thị.
+    let filtervideo = selectedFilter.value ?? 0;
     fetch(`${web_url}/textsearch`, {
       method: "post",
       headers: apiHeaders(),
@@ -285,7 +301,7 @@ function Index() {
         // roi moi xuong frame. Duong cu (xep hang frame truc tiep) chay tren
         // dict/ da bi xoa nen khong con dung duoc.
         fusion: true,
-        decompose: true,
+        decompose: useLlm,
         // null = de he thong tu quyet dinh; true/false = nguoi dung ep.
         align: alignMode === "auto" ? null : alignMode === "on",
         channel_modes: channelModes,
@@ -387,7 +403,7 @@ function Index() {
     setVideos([]);
     setId([]);
     setFilter(false);
-    setSelectedFilter({ name: "No Filter" });
+    setSelectedFilter(FILTER_OPTIONS[0]);
   };
 
   const getRec = () => {
@@ -629,18 +645,13 @@ function Index() {
           ignoreIndexes.push(...lst_idxs);
           console.log(ignoreIndexes);
 
-          let filtervideo =
-            selectedFilter.name === "No Filter"
-              ? 0
-              : selectedFilter.name === "Filter Forwards"
-              ? 1
-              : 2;
+          let filtervideo = selectedFilter.value ?? 0;
           fetch(`${web_url}/textsearch`, {
             method: "post",
             headers: apiHeaders(),
             body: JSON.stringify({
               fusion: true,
-              decompose: true,
+              decompose: useLlm,
               align: alignMode === "auto" ? null : alignMode === "on",
               channel_modes: channelModes,
               textquery: query,
@@ -742,6 +753,11 @@ function Index() {
             candidates: candidates,
             ignore: ignore.filter(Boolean),
             target: 100,
+            // Gửi kèm truy vấn để backend lấy thêm ứng viên NGOÀI lưới đang
+            // hiện. Bài nộp có 100 ô chấm theo thứ hạng — không có lý do gì để
+            // 100 ô đó bị giới hạn bởi số ảnh người dùng đang nhìn thấy.
+            query_vi: query,
+            kind: searchMeta && searchMeta.query ? searchMeta.query.kind : null,
           }),
         });
       })
@@ -819,6 +835,7 @@ function Index() {
           setIsShown={setIsShown}
         />
       )}
+      {panelOpen && (
       <Panel
         socket={socket}
         // handleAutoIgnore={handleAutoIgnore}
@@ -838,44 +855,35 @@ function Index() {
         searchSpace={searchSpace}
         addView={addView}
       />
-      <div className="relative flex-auto h-full flex flex-col overflow-auto">
+      )}
+      <div className="relative flex-auto h-full flex flex-col overflow-hidden min-w-0">
         {/* {loading icon} */}
         {loading && <LoadingIcon />}
         {/* {searchbars} */}
-        <div className="w-full flex flex-col items-center justify-center p-4 bg-white/5 backdrop-blur-md shadow-[0_4px_30px_rgba(0,0,0,0.1)] border border-white/20 rounded-xl mb-4 mt-2 w-[98%] mx-auto z-10">
+        {/* ================= THANH CÔNG CỤ =================================
+            Xếp theo VIỆC, không phải theo thứ tự lịch sử code:
+              hàng 1  tìm gì          — ô tìm kiếm là thứ to nhất màn hình
+              hàng 2  tìm thế nào     — các công tắc điều chỉnh cách tìm
+              hàng 3  làm gì với đáp án — chọn câu hỏi, lấp 100, xuất bài
+            ================================================================= */}
+        <div className="appbar w-full sticky top-0 z-20 px-4 py-3 flex flex-col gap-2.5">
+
+          {/* ---------- hàng 1: tìm gì ---------- */}
           <div id="bar" className="w-full flex relative gap-2 items-center">
-            {
-              // translate &&
-              <span
-                id="translate"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigator.clipboard.writeText(translate);
-                  document.getElementById("mainsearch").focus();
-                }}
-                style={{ zIndex: 2, display: "none" }}
-                className="hover:ring-2 ring-orange-400 transition-all cursor-pointer align-middle h-fit absolute top-14 placeholder:italic text-slate-300 w-full p-2 indent-2 rounded-md bg-slate-800/90 backdrop-blur-sm"
-              >
-                {translate ? translate : "Translate..."}
-              </span>
-            }
-            <input
-              tabIndex={-1}
-              id="K"
-              type="number"
-              placeholder="K"
-              className="w-16 h-12 transition-all hover:drop-shadow-[0px_4px_10px_rgba(255,255,255,0.2)] placeholder:italic text-slate-300 indent-2 text-lg relative rounded-full bg-slate-900/50 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-              onChange={(e) => {
-                const val = e.target.value === "" ? 500 : Number(e.target.value);
-                const parsed = Number.isNaN(val) ? 500 : val;
-                if (filter && parsed > currentK)
-                  alert(
-                    `Filter Mode: K must be smaller than in the previous query`
-                  );
-                else setK(parsed);
+            <span
+              id="translate"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(translate);
+                document.getElementById("mainsearch").focus();
               }}
-              value={k}
-            ></input>
+              style={{ zIndex: 2, display: "none" }}
+              title="Bản dịch gửi cho SigLIP. Bấm để chép."
+              className="panel absolute top-[52px] left-0 right-0 cursor-pointer px-3 py-2 text-sm text-[color:var(--ink-2)] hover:border-[color:var(--accent)] transition"
+            >
+              {translate ? translate : "Bản dịch sẽ hiện ở đây..."}
+            </span>
+
             <input
               id="mainsearch"
               tabIndex={1}
@@ -886,287 +894,337 @@ function Index() {
                 }
               }}
               type="search"
-              placeholder="Nhập truy vấn tìm kiếm..."
-              className="transition-all hover:drop-shadow-[0px_4px_10px_rgba(255,255,255,0.2)] placeholder:text-slate-400 text-white text-lg relative w-full h-12 indent-4 rounded-full bg-slate-900/50 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-inner"
+              placeholder="Mô tả cảnh cần tìm — vd: ba người đi bộ xuống dốc dưới mưa, hai người cầm dù"
+              className="searchbar"
               onClick={(e) => e.stopPropagation()}
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
-                // handleTranslate(e.target.value);
                 document.getElementById("translate").style.display = "block";
               }}
-              onFocus={(e) => {
+              onFocus={() => {
                 document.getElementById("translate").style.display = "block";
               }}
-            ></input>
-            <div className=" mr-2 w-20 h-10 gap-1 flex space-around items-center">
-              <SpeechToText setQuery={setQuery} />
-              <button
-                type="button"
-                id="mainsearch_button"
-                className="border-orange-400 focus:bg-gradient-to-tr hover:opacity-100 border hover:bg-gradient-to-tr from-orange-400 via-red-500 to-red-400 duration-75  hover:scale-90  p-1 bg-slate-100 rounded-full"
-                onClick={() => {
-                  getImgLinks();
-                  getRec();
-                }}
-              >
-                <AiOutlineSearch color={"white"} fontSize="1.8rem" />
-              </button>
-            </div>
-          </div>
-          <div className="checkboxes flex flex-wrap items-center mt-3 h-fit gap-2 w-full justify-center">
-            <Tabs
-              queryHistory={queryHistory}
-              handleHistory={handleHistory}
-              selected={selected}
-              setSelected={setSelected}
             />
-            <button
+
+            <SpeechToText setQuery={setQuery} />
+
+            <Button
+              id="mainsearch_button"
+              variant="accent"
+              className="h-[46px] px-5 text-[15px]"
               onClick={() => {
-                clearAll();
+                getImgLinks();
+                getRec();
               }}
-              type="button"
-              className="w-10 h-8 rounded-md bg-slate-500 hover:bg-orange-600 hover:ring-2 ring-orange-400 transition hover:scale-90"
             >
-              Clear
-            </button>
-            <Select selected={selectedFilter} setSelected={setSelectedFilter} />
-            <input
-              tabIndex={-1}
-              id="rangeFilter"
+              <AiOutlineSearch fontSize="1.15rem" />
+              Tìm
+            </Button>
+
+            <Field
+              label="Số ảnh"
+              hint="Số keyframe hiển thị trên lưới. Bài nộp không bị giới hạn bởi con số này."
+              id="K"
               type="number"
-              placeholder="range"
-              className="w-6 appearance-none transition-all hover:drop-shadow-[0px_4px_3px_rgba(255,255,255,0.2)] placeholder:italic text-slate-300 text-lg relative p-0.5 rounded-md bg-slate-800"
+              inputClassName="inp--num h-[46px]"
               onChange={(e) => {
-                const val = e.target.value === "" ? 3 : Number(e.target.value);
-                SetRangeFilter(Number.isNaN(val) ? 3 : val);
+                const val = e.target.value === "" ? 500 : Number(e.target.value);
+                const parsed = Number.isNaN(val) ? 500 : val;
+                if (filter && parsed > currentK)
+                  alert("Chế độ Lọc: số ảnh phải nhỏ hơn lượt tìm trước");
+                else setK(parsed);
               }}
-              value={rangeFilter}
-            ></input>
-            <div id="filter" className="flex items-center ">
-              <input
-                checked={filter}
-                onChange={(e) => {
-                  setFilter(e.target.checked);
-                }}
-                disabled={queryHistory.length === 0 && filter === false}
-                id="Filter"
-                type="checkbox"
-                className="cursor-pointer rounded-md duration-200 w-5 h-5 accent-slate-600 bg-gray-100 border-gray-300 rounded hover:ring-slate-500 hover:ring-2"
-              />
-              <label
-                htmlFor="Filter"
-                className="cursor-pointer pl-0.5 text-slate-300"
-              >
-                <span className="">Filter</span>
-              </label>
-            </div>
-            <div id="ignore" className="flex items-center ">
-              <input
-                checked={ignore}
-                onChange={(e) => {
-                  setIgnore(e.target.checked);
-                }}
-                id="Ignore"
-                type="checkbox"
-                className="cursor-pointer rounded-md duration-200 w-5 h-5 accent-slate-600 bg-gray-100 border-gray-300 rounded hover:ring-slate-500 hover:ring-2"
-              />
-              <label
-                htmlFor="Ignore"
-                className="cursor-pointer pl-0.5 text-slate-300"
-              >
-                <span className="">Ignore</span>
-              </label>
-            </div>
-            <div id="Auto" className="flex items-center">
-              <input
-                checked={autoIgnore}
-                onChange={(e) => {
-                  setAutoIgnore(e.target.checked);
-                }}
-                id="AutoIgnore"
-                type="checkbox"
-                className="cursor-pointer rounded-md duration-200 w-5 h-5 accent-slate-600 bg-gray-100 border-gray-300 rounded hover:ring-slate-500 hover:ring-2"
-              />
-              <label
-                htmlFor="AutoIgnore"
-                className="cursor-pointer pl-0.5 text-slate-300"
-              >
-                <span className="">AutoIgnore</span>
-              </label>
-            </div>
-            {/* question dropdown */}
-            <div className="h-fit w-fit flex flex-col relative">
-              <input
-                placeholder="Questions"
-                id="questionName"
-                value={questionName}
-                onKeyDown={(e) => {
-                  if (e.key == "Enter") {
-                    document.getElementById("send").click();
-                  }
-                }}
-                onChange={(e) => {
-                  setQuestionName(e.target.value);
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  getOwnedQuestions(username);
-                  document.getElementById("questions").style.display = "flex";
-                  console.log("click");
-                }}
-                onFocus={() => {
-                  document.getElementById("questions").style.display = "flex";
-                }}
-                className="transition-all hover:drop-shadow-[0px_2px_1px_rgba(255,255,255,0.2)] placeholder:italic text-slate-300 text-sm relative w-24 p-1 indent-1 rounded-full bg-slate-800"
-              />
-              <Questions
-                isLoading={questionsLoading}
-                questions={questions}
-                username={username}
-                setQuestionName={setQuestionName}
-              />
-            </div>
-            <QueryKind
-              meta={searchMeta}
-              alignMode={alignMode}
-              setAlignMode={setAlignMode}
+              value={k}
             />
+          </div>
+
+          {/* ---------- hàng 2: tìm thế nào ---------- */}
+          <div className="w-full flex flex-wrap items-center gap-2">
             <ChannelModes
               modes={channelModes}
               setModes={setChannelModes}
               meta={searchMeta}
             />
-            <button
-              type="button"
-              disabled={autofilling}
-              title="Lấp đủ 100 dòng đáp án bằng MMR trên kết quả đang hiển thị. Các dòng bạn tự chọn được giữ nguyên ở đầu."
-              onClick={handleAutofill}
-              className="text-xs px-1.5 h-6 rounded-md bg-slate-700 hover:bg-amber-700 hover:ring-1 ring-amber-400 transition text-slate-300 disabled:opacity-50"
-            >
-              {autofilling ? "..." : "Lấp 100"}
-            </button>
-            <button
-              type="button"
-              title="Export CSV cho câu hỏi đang chọn"
-              onClick={() => {
-                if (!questionName) {
-                  alert("Chọn câu hỏi trước khi export CSV");
-                  return;
-                }
-                window.open(
-                  `${socket_url}/export/kis?questionName=${encodeURIComponent(questionName)}`,
-                  "_blank"
-                );
-              }}
-              className="text-xs px-1.5 h-6 rounded-md bg-slate-700 hover:bg-emerald-700 hover:ring-1 ring-emerald-400 transition text-slate-300"
-            >
-              CSV
-            </button>
-            <button
-              type="button"
-              title="Export toàn bộ submission ZIP"
-              onClick={() => {
-                window.open(`${socket_url}/export/submission_zip`, "_blank");
-              }}
-              className="text-xs px-1.5 h-6 rounded-md bg-slate-700 hover:bg-blue-700 hover:ring-1 ring-blue-400 transition text-slate-300"
-            >
-              ZIP
-            </button>
-            {/* <input
-              placeholder="Username"
-              value={username}
-              onChange={(e) => handleUsername(e.target.value)}
-              className="transition-all w-14 hover:drop-shadow-[0px_2px_1px_rgba(255,255,255,0.2)] placeholder:italic text-slate-300 text-sm relative  p-1 indent-1 rounded-full bg-slate-800"
-            /> */}
-            <div className="relative">
-              <input
-                tabIndex={1}
-                id="username"
-                value={username}
-                autoComplete="off"
-                // disabled={lockUsernameInput}
-                readOnly={lockUsernameInput}
-                onKeyDown={(e) => {
-                  if (e.key == "Enter") {
-                    document.getElementById("lock").click();
-                  }
-                }}
-                type="search"
-                placeholder="Username..."
-                className={`w-24 transition-all  
-              placeholder:italic text-slate-300 relative indent-1 rounded-md 
-              ${
-                lockUsernameInput
-                  ? "bg-transparent border border-white/50 outline-none cursor-no-drop"
-                  : "bg-slate-800"
-              }
-              `}
-                onChange={(e) => {
-                  handleUsername(e.target.value);
-                }}
-              />
-              <Lock lock={lockUsernameInput} setLock={setLockUsernameInput} />
-            </div>
-            <input
-              tabIndex={-1}
-              id="search space"
-              min={0}
-              max={5}
-              type="number"
-              placeholder="Space"
-              className="w-6 appearance-none transition-all hover:drop-shadow-[0px_4px_3px_rgba(255,255,255,0.2)] placeholder:italic text-slate-300 text-lg relative p-0.5 rounded-md bg-slate-800"
-              onChange={(e) => {
-                const val = e.target.value === "" ? 0 : Number(e.target.value);
-                setSearchSpace(Number.isNaN(val) ? 0 : val);
-              }}
-              value={searchSpace}
-            ></input>
-            <button
-              type="button"
-              className="text-center items-center h-fit w-fit rounded-md bg-slate-500 hover:bg-orange-600 transition"
-            >
-              <a href="/submit" target="_blank" className="h-8 w-12 rounded-md">
-                View
-              </a>
-            </button>
 
-            <div className="flex items-center ml-auto feedbackmode text-orange-500 rounded-md">
-              <input
+            <QueryKind
+              meta={searchMeta}
+              alignMode={alignMode}
+              setAlignMode={setAlignMode}
+            />
+
+            <Group label="LLM">
+              <Segmented
+                value={useLlm ? "on" : "off"}
+                onChange={(v) => setUseLlm(v === "on")}
+                options={[
+                  { value: "off", label: "Tắt",
+                    title: "Mặc định. Dùng dịch máy — đo được là cho điểm cao hơn." },
+                  { value: "on", label: "Bật", tone: "on",
+                    title: "Bật khi dịch máy dịch sai thuật ngữ Việt (vd 'múa lân' ra 'the unicorn'). Đo được: bật vào làm điểm giảm 0.60 → 0.46, nên chỉ bật cho truy vấn khó." },
+                ]}
+              />
+            </Group>
+
+            <Group label="Lọc lại">
+              <Check
+                id="Filter"
+                checked={filter}
+                disabled={queryHistory.length === 0 && filter === false}
+                onChange={(e) => setFilter(e.target.checked)}
+                hint="Tìm bên trong kết quả của lượt trước"
+              >
+                Trong kết quả cũ
+              </Check>
+              <Check
+                id="Ignore"
+                checked={ignore}
+                onChange={(e) => setIgnore(e.target.checked)}
+                hint="Bỏ qua các frame đã đánh dấu loại"
+              >
+                Bỏ frame đã loại
+              </Check>
+              <Check
+                id="AutoIgnore"
+                checked={autoIgnore}
+                onChange={(e) => setAutoIgnore(e.target.checked)}
+                hint="Tự đánh dấu loại các frame đã xem qua"
+              >
+                Tự loại đã xem
+              </Check>
+            </Group>
+
+            <Group label="Bộ lọc">
+              <Select selected={selectedFilter} setSelected={setSelectedFilter} />
+              <Field
+                label="Dải"
+                hint="Độ rộng dải frame quanh mỗi kết quả"
+                id="rangeFilter"
+                type="number"
+                inputClassName="inp--num inp--sm w-[52px]"
+                onChange={(e) => {
+                  const val = e.target.value === "" ? 3 : Number(e.target.value);
+                  SetRangeFilter(Number.isNaN(val) ? 3 : val);
+                }}
+                value={rangeFilter}
+              />
+              <Field
+                label="Nhóm"
+                hint="Gom kết quả theo nhóm video (0 = tắt)"
+                id="search space"
+                min={0}
+                max={5}
+                type="number"
+                inputClassName="inp--num inp--sm w-[52px]"
+                onChange={(e) => {
+                  const val = e.target.value === "" ? 0 : Number(e.target.value);
+                  setSearchSpace(Number.isNaN(val) ? 0 : val);
+                }}
+                value={searchSpace}
+              />
+            </Group>
+
+            <Button
+              size="sm"
+              variant="danger"
+              onClick={() => clearAll()}
+              title="Xoá kết quả và mọi bộ lọc đang bật"
+            >
+              Xoá hết
+            </Button>
+
+            <div className="ml-auto flex items-center gap-2">
+              <Tabs
+                queryHistory={queryHistory}
+                handleHistory={handleHistory}
+                selected={selected}
+                setSelected={setSelected}
+              />
+              <Button
+                size="sm"
+                active={panelOpen}
+                onClick={() => setPanelOpen((v) => !v)}
+                title="Tìm theo lớp object và VỊ TRÍ trên khung hình, kèm ô lọc theo chữ trên hình / lời nói"
+              >
+                {panelOpen ? "Ẩn bảng object" : "Bảng object"}
+              </Button>
+            </div>
+          </div>
+
+          {/* ---------- hàng 3: làm gì với đáp án ---------- */}
+          <div className="w-full flex flex-wrap items-center gap-2">
+            <Group label="Câu hỏi">
+              <div className="h-fit w-fit flex flex-col relative">
+                <input
+                  placeholder="Chọn hoặc gõ tên..."
+                  id="questionName"
+                  value={questionName}
+                  onKeyDown={(e) => {
+                    if (e.key == "Enter") document.getElementById("send").click();
+                  }}
+                  onChange={(e) => setQuestionName(e.target.value)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    getOwnedQuestions(username);
+                    document.getElementById("questions").style.display = "flex";
+                  }}
+                  onFocus={() => {
+                    document.getElementById("questions").style.display = "flex";
+                  }}
+                  className="inp inp--sm w-40"
+                />
+                <Questions
+                  isLoading={questionsLoading}
+                  questions={questions}
+                  username={username}
+                  setQuestionName={setQuestionName}
+                />
+              </div>
+            </Group>
+
+            <Group label="Bài nộp">
+              <Button
+                size="sm"
+                variant="accent"
+                disabled={autofilling}
+                title="Lấp đủ 100 dòng đáp án. Ô 1–20 giữ nguyên thứ hạng tìm kiếm, ô 21–100 mới trải đều theo thời gian. Frame bạn tự chọn luôn nằm đầu."
+                onClick={handleAutofill}
+              >
+                {autofilling ? "Đang lấp..." : "Lấp 100 dòng"}
+              </Button>
+              <Button
+                size="sm"
+                title="Tải CSV của câu hỏi đang chọn"
+                onClick={() => {
+                  if (!questionName) {
+                    alert("Chọn câu hỏi trước khi tải CSV");
+                    return;
+                  }
+                  window.open(
+                    `${socket_url}/export/kis?questionName=${encodeURIComponent(questionName)}`,
+                    "_blank"
+                  );
+                }}
+              >
+                Tải CSV
+              </Button>
+              <Button
+                size="sm"
+                title="Tải toàn bộ bài nộp dạng ZIP"
+                onClick={() => window.open(`${socket_url}/export/submission_zip`, "_blank")}
+              >
+                Tải ZIP
+              </Button>
+              <Button
+                size="sm"
+                title="Mở trang xem lại đáp án đã chọn"
+                onClick={() => window.open("/submit", "_blank")}
+              >
+                Xem đáp án
+              </Button>
+            </Group>
+
+            <Group label="Phản hồi">
+              <Check
+                id="Feedback"
                 checked={feedbackMode}
                 onChange={(e) => {
                   deleteFeedback();
                   setFeedbackMode(e.target.checked);
                 }}
-                id="Feedback"
-                type="checkbox"
-                className="cursor-pointer rounded-md  duration-200 w-5 h-5 accent-orange-700/75 rounded hover:ring-orange-300 hover:ring-2"
-              />
-              <label
-                htmlFor="Feedback"
-                className="cursor-pointer pl-0.5 text-slate-300"
+                hint="Bật để đánh dấu ảnh đúng/sai rồi gửi lại cho hệ tìm kiếm"
               >
-                <span className=" text-green-500">Feedback</span>
-              </label>
+                Chấm ảnh
+              </Check>
+              <Button
+                id="send"
+                size="sm"
+                disabled={!feedbackMode}
+                onClick={() => sendFeedback()}
+                title="Gửi các ảnh đã chấm để tìm lại"
+              >
+                Gửi &amp; tìm lại
+              </Button>
+            </Group>
+
+            <div className="ml-auto flex items-center gap-2">
+              <div className="relative">
+                <input
+                  tabIndex={1}
+                  id="username"
+                  value={username}
+                  autoComplete="off"
+                  readOnly={lockUsernameInput}
+                  onKeyDown={(e) => {
+                    if (e.key == "Enter") document.getElementById("lock").click();
+                  }}
+                  type="search"
+                  placeholder="Tên của bạn..."
+                  className={`inp inp--sm w-36 pr-7 ${
+                    lockUsernameInput ? "cursor-not-allowed opacity-70" : ""
+                  }`}
+                  onChange={(e) => handleUsername(e.target.value)}
+                />
+                <Lock lock={lockUsernameInput} setLock={setLockUsernameInput} />
+              </div>
             </div>
-            <button
-              id="send"
-              onClick={() => {
-                sendFeedback();
-              }}
-              type="button"
-              className="text-center items-center px-1 h-8 mr-2 rounded-md bg-slate-500 hover:bg-orange-600 hover:ring-2 ring-orange-400 transition hover:scale-90"
-            >
-              Send
-            </button>
           </div>
         </div>
 
         {/* {images} */}
+        {/* ---------- thanh trạng thái kết quả ---------- */}
+        {!loading && searchMeta && (
+          <div className="flex flex-wrap items-center gap-2 px-4 py-2 text-[12px]
+                          text-[color:var(--ink-2)] border-b border-[color:var(--line)]">
+            <span className="mono">
+              {videos.length} video · {id.length} khung hình
+            </span>
+            {searchMeta.nRanked > 0 && (
+              <span className="text-[color:var(--muted)]">
+                (xếp hạng trên {searchMeta.nRanked} video)
+              </span>
+            )}
+            {searchMeta.query && searchMeta.query.query_en && (
+              <span className="chip" title="Chuỗi thật sự gửi cho SigLIP">
+                {searchMeta.query.query_en.split("\n")[0].slice(0, 70)}
+              </span>
+            )}
+            {Object.entries(searchMeta.errors || {}).map(([k, v]) => (
+              <span key={k} className="chip chip--warn" title={String(v)}>
+                kênh {k} lỗi
+              </span>
+            ))}
+          </div>
+        )}
+
         <div
           id="images"
-          className=" flex-auto flex-col overflow-auto flex h-full"
+          className="results flex-auto flex-col overflow-auto flex h-full px-3 pb-2"
         >
+          {/* ---------- trạng thái rỗng ---------- */}
+          {!loading && videos.length === 0 && (
+            <div className="flex flex-col items-center justify-center gap-3 h-full text-center px-6">
+              <div className="text-[15px] text-[color:var(--ink-2)]">
+                {searchMeta
+                  ? "Không có kết quả nào khớp."
+                  : "Mô tả cảnh cần tìm rồi bấm Tìm."}
+              </div>
+              <div className="text-[12.5px] text-[color:var(--muted)] max-w-[54ch] leading-relaxed">
+                {searchMeta ? (
+                  <>
+                    Thử tắt bớt bộ lọc, hoặc bật kênh <b>Chữ trên hình</b> / <b>Lời nói</b>
+                    {" "}nếu truy vấn nhắc tới chữ hoặc tên riêng.
+                  </>
+                ) : (
+                  <>
+                    Mô tả càng cụ thể càng tốt — màu sắc, số lượng, vật thể lạ.
+                    Cần tìm theo vị trí trên khung hình thì dùng bảng object bên trái.
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           {!loading &&
             videos.length > 0 &&
             videos
@@ -1285,7 +1343,7 @@ function Index() {
                         }
                       )}
                     </VideoWrapper>
-                    <hr class="h-2 border-1 my-8 bg-orange-400 border-slate-700"></hr>
+                    <hr className="my-6 h-px border-0 bg-[color:var(--accent-dim)]" />
                   </>
                 ) : (
                   <>

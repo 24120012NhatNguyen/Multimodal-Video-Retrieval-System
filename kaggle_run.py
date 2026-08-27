@@ -106,33 +106,83 @@ for _k, _v in (("ANTHROPIC_API_KEY", ANTHROPIC_API_KEY),
     if _v:
         os.environ[_k] = _v
 
-print(f"Checking ARTIFACT_ROOT: {ARTIFACT_ROOT}")
-
 # --- Kiem tra du lieu truoc khi mo tunnel -------------------------------
-print(f"\nARTIFACT_ROOT = {ARTIFACT_ROOT}")
+# In bang mot lenh duy nhat + flush: Kaggle gom dem stdout, nhieu lenh print
+# lien tiep co the bi nuot dong hoac tron thu tu voi log cua thu vien khac.
+def say(*lines):
+    print("\n".join(str(x) for x in lines), flush=True)
+
+
+say("", f"ARTIFACT_ROOT = {ARTIFACT_ROOT}")
 if not os.path.isdir(ARTIFACT_ROOT):
-    print("  KHONG TON TAI. Tim thu muc dung bang:")
-    print("     import os; os.listdir('/kaggle/input')")
+    say("  KHONG TON TAI. Tim thu muc dung bang:",
+        "     import os; os.listdir('/kaggle/input')")
     sys.exit(1)
 
-packs = sorted(d for d in os.listdir(ARTIFACT_ROOT)
-               if os.path.isdir(os.path.join(ARTIFACT_ROOT, d)))
-n_feat = sum(len(os.listdir(os.path.join(ARTIFACT_ROOT, p, "features")))
-             for p in packs
-             if os.path.isdir(os.path.join(ARTIFACT_ROOT, p, "features")))
-print(f"  {len(packs)} thu muc, {n_feat} file features")
+subdirs = sorted(d for d in os.listdir(ARTIFACT_ROOT)
+                 if os.path.isdir(os.path.join(ARTIFACT_ROOT, d)))
+
+
+def _count(pack, sub):
+    d = os.path.join(ARTIFACT_ROOT, pack, sub)
+    return len(os.listdir(d)) if os.path.isdir(d) else 0
+
+
+packs = [d for d in subdirs if os.path.isdir(os.path.join(ARTIFACT_ROOT, d, "features"))]
+n_feat = sum(_count(p, "features") for p in packs)
+n_asr = sum(_count(p, "asr") for p in packs)
+n_ocr = sum(_count(p, "ocr") for p in packs)
+
+say(f"  {len(packs)} pack, {n_feat} features, {n_asr} asr, {n_ocr} ocr")
 if n_feat == 0:
-    print("  Khong co file features nao -> tim kiem se tra ve rong. Dung lai.")
+    say("  Khong co file features nao -> tim kiem se tra ve rong. Dung lai.")
     sys.exit(1)
 
-print(f"  NGROK_TOKEN       = {mask(NGROK_TOKEN)}")
-print(f"  LLM_PROVIDER      = {LLM_PROVIDER}")
+# --- Thu muc phu: thieu cai nao thi kenh do CHET AM THAM ----------------
+# Moi dong duoi la mot chuc nang cu the se hong, khong phai canh bao chung chung.
+side = []
+for label, rel, hong in (
+    ("metadata", os.path.join("media-info-aic25-b1", "media-info"),
+     "kenh meta/meta_fold tat -> tim theo ten dai, tieu de, tu khoa khong chay"),
+    ("object", os.path.join("objects-aic25-b1", "objects"),
+     "panel object va /keyframe_context muc objects tat"),
+    ("map-keyframes", "map-keyframes",
+     "object khong co moc thoi gian de bac cau -> kenh object tat du co du lieu"),
+):
+    d = os.path.join(ARTIFACT_ROOT, rel)
+    alt = os.path.join(ARTIFACT_ROOT, os.path.basename(rel))
+    got = d if os.path.isdir(d) else (alt if os.path.isdir(alt) else None)
+    side.append((label, got, len(os.listdir(got)) if got else 0, hong))
+
+for label, got, n, hong in side:
+    if got:
+        say(f"  {label:14} = {n} file")
+    else:
+        say(f"  [thieu] {label} -> {hong}")
+
+# --- Video co metadata nhung KHONG co features --------------------------
+# Tim khong ra nhung video nay la DUNG, khong phai loi he thong -- nhung phai
+# biet truoc con so, chu khong phat hien giua buoi thi.
+_meta_dir = next((g for l, g, _, _ in side if l == "metadata" and g), None)
+if _meta_dir:
+    n_meta = len([f for f in os.listdir(_meta_dir) if f.endswith(".json")])
+    if n_meta > n_feat:
+        say("",
+            f"  [chu y] {n_meta} video co metadata nhung chi {n_feat} co features.",
+            f"          {n_meta - n_feat} video ({100*(n_meta-n_feat)/n_meta:.0f}%) "
+            f"KHONG tim ra duoc bang kenh thi giac.",
+            "          Bo artifacts tren Kaggle cu hon bo o may local? Xem "
+            "GET /diagnostics muc metadata.")
+
+say("",
+    f"  NGROK_TOKEN       = {mask(NGROK_TOKEN)}",
+    f"  LLM_PROVIDER      = {LLM_PROVIDER}")
 if LLM_PROVIDER == "anthropic":
-    print(f"  ANTHROPIC_API_KEY = {mask(ANTHROPIC_API_KEY)}")
+    say(f"  ANTHROPIC_API_KEY = {mask(ANTHROPIC_API_KEY)}")
 else:
-    print(f"  GEMINI_API_KEY    = {mask(GEMINI_API_KEY)}")
-    print(f"  GEMINI_MODEL_PRO   = {GEMINI_MODEL_PRO or '(chua dat)'}")
-    print(f"  GEMINI_MODEL_FLASH = {GEMINI_MODEL_FLASH or '(chua dat)'}")
+    say(f"  GEMINI_API_KEY    = {mask(GEMINI_API_KEY)}",
+        f"  GEMINI_MODEL_PRO   = {GEMINI_MODEL_PRO or '(chua dat)'}",
+        f"  GEMINI_MODEL_FLASH = {GEMINI_MODEL_FLASH or '(chua dat)'}")
 
 # --- Index object cho /panel -------------------------------------------
 # Thieu thi /panel tra ve rong. Day la che do xuong cap CO Y (tim kiem van
@@ -141,30 +191,40 @@ from retrieval.objects import ObjectIndex as _OIX
 
 _oix = _OIX()
 if _oix.ok:
-    print(f"  Index object      = {len(_oix.entities)} lop, "
-          f"{len(_oix.det_ent)} detection ({_oix.path})")
+    say(f"  Index object      = {len(_oix.entities)} lop, "
+        f"{len(_oix.det_ent)} detection ({_oix.path})")
 else:
-    print("\n  [chu y] KHONG CO INDEX OBJECT -> /panel se tra ve RONG.")
-    print(f"          {_oix.error}")
-    print("          Dat object_index.npz vao thu muc artifacts truoc khi upload")
-    print("          len Kaggle, hoac dat OBJECT_INDEX tro toi file do.")
-    print("          Dung index: python -m retrieval.objects build")
+    say("",
+        "  [chu y] KHONG CO INDEX OBJECT -> /panel se tra ve RONG.",
+        f"          {_oix.error}",
+        "          Cach sua: o MAY LOCAL chay",
+        "              python -m retrieval.objects build",
+        "          roi chep data/artifacts/object_index.npz vao thu muc "
+        "artifacts",
+        "          truoc khi upload len Kaggle (hoac dat bien OBJECT_INDEX).")
 
 # --- Kiem tra LLM that su tra loi duoc ---------------------------------
-# Co API key khong dong nghia goi duoc: sai key, het quota, sai ten model deu
-# ra 4xx. Thu mot lan o day, con hon phat hien giua buoi thi.
-print("\nKiem tra LLM...")
+# Co API key khong dong nghia goi duoc: thieu SDK, sai key, het quota, sai ten
+# model deu hong theo kieu khac nhau. Thu mot lan o day, con hon phat hien giua
+# buoi thi.
+say("", "Kiem tra LLM...")
 from retrieval.llm_client import get_client as _get_llm
 
 _llm = _get_llm()
 _probe = _llm.generate("Tra loi dung mot tu: OK", tier="flash")
 if _probe.ok:
-    print(f"  LLM san sang: {_probe.model} ({_probe.latency_ms}ms) "
-          f"-> {(_probe.text or '').strip()[:30]!r}")
+    say(f"  LLM san sang: {_probe.model} ({_probe.latency_ms}ms) "
+        f"-> {(_probe.text or '').strip()[:30]!r}")
 else:
-    print(f"  LLM KHONG DUNG DUOC: {_probe.reason} -- {_probe.error}")
-    print("  He thong chay CHE DO KHONG-LLM: van tim duoc bang SigLIP + BM25 +")
-    print("  dich may, chi mat phan ra truy van va Q/A. Day khong phai loi chet.")
+    _err = str(_probe.error or "")
+    say(f"  LLM KHONG DUNG DUOC: {_probe.reason} -- {_err}")
+    if "No module named" in _err or "thieu SDK" in _err:
+        # Thieu goi thi sua duoc ngay tai cho, khong phai chay lai ca notebook.
+        say("  -> Thieu goi Python. Chay trong mot cell roi %run lai file nay:",
+            f"         !pip install -q anthropic",
+            "     (requirements.txt da co san tu ban nay tro di.)")
+    say("  He thong chay CHE DO KHONG-LLM: van tim duoc bang SigLIP + BM25 +",
+        "  dich may, chi mat phan ra truy van va Q/A. Day khong phai loi chet.")
 
 
 # --- Nap model TRUOC khi mo tunnel --------------------------------------

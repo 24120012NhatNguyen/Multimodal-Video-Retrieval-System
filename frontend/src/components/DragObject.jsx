@@ -9,7 +9,10 @@ function DragObject({type, id, handleMove}) {
   return (
     <div
       id={`${type}${id}`}
-      className="hover:border border-slate-900 transition select-none overflow-hidden resize box top-0 left-0 absolute h-[80px] w-[80px] cursor-pointer rounded-md"
+      title={`${type} — kéo để đặt vị trí, kéo góc để đổi kích thước`}
+      className="select-none overflow-hidden resize box top-0 left-0 absolute h-[80px] w-[80px]
+                 cursor-move rounded-md border-2 border-[color:var(--accent)]
+                 bg-[color:var(--bg)]/40 hover:bg-[color:var(--bg)]/10 transition"
       >
       <Image
         onDragStart={(e) => e.preventDefault()}

@@ -28,7 +28,7 @@ function FrameRangeViewer({
 
   const handleFetch = () => {
     if (!videoId || start === "" || end === "") {
-      alert("Nhập đầy đủ Video ID, Start và End");
+      alert("Nhập đủ Mã video, Từ và Đến");
       return;
     }
     setLoading(true);
@@ -61,31 +61,31 @@ function FrameRangeViewer({
   };
 
   return (
-    <div className="w-full mt-1 mb-1">
-      <div className="flex items-center gap-1 px-1 py-0.5 bg-slate-800 rounded-md">
-        <span className="text-slate-400 text-xs font-semibold shrink-0">
-          FrameRange
+    <div className="w-full px-1 mt-1 mb-1">
+      <div className="grp flex-nowrap gap-1.5">
+        <span className="grp__label">
+          Dải frame
         </span>
         <input
           type="text"
-          placeholder="Video ID"
+          placeholder="Mã video"
           value={videoId}
           onChange={(e) => setVideoId(e.target.value)}
-          className="w-24 text-xs placeholder:italic text-slate-300 p-1 rounded-md bg-slate-700"
+          className="inp inp--sm w-28"
         />
         <input
           type="number"
-          placeholder="Start"
+          placeholder="Từ"
           value={start}
           onChange={(e) => setStart(e.target.value)}
-          className="w-14 text-xs placeholder:italic text-slate-300 p-1 rounded-md bg-slate-700"
+          className="inp inp--sm inp--num w-16"
         />
         <input
           type="number"
-          placeholder="End"
+          placeholder="Đến"
           value={end}
           onChange={(e) => setEnd(e.target.value)}
-          className="w-14 text-xs placeholder:italic text-slate-300 p-1 rounded-md bg-slate-700"
+          className="inp inp--sm inp--num w-16"
         />
         <input
           type="text"
@@ -95,19 +95,19 @@ function FrameRangeViewer({
           onKeyDown={(e) => {
             if (e.key === "Enter") handleFetch();
           }}
-          className="flex-auto text-xs placeholder:italic text-slate-300 p-1 rounded-md bg-slate-700"
+          className="inp inp--sm flex-auto"
         />
         <button
           type="button"
           onClick={handleFetch}
-          className="text-xs px-2 py-1 rounded-md bg-emerald-700 hover:bg-emerald-600 hover:ring-1 ring-emerald-400 transition text-slate-200 font-semibold shrink-0"
+          className="btn btn--sm shrink-0"
         >
           Xem
         </button>
       </div>
 
       {message && (
-        <div className="text-xs text-amber-400 px-1 py-0.5">{message}</div>
+        <div className="text-[11.5px] text-[color:var(--accent)] px-1 py-1">{message}</div>
       )}
 
       {loading && <LoadingIcon />}

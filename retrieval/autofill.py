@@ -1,18 +1,51 @@
-"""Viec 3 -- lap day 100 dong dap an.
+"""Viec 3 -- chon 100 dong dap an de nop.
 
-Bai thi cham theo thu hang va cho 100 dong. Nguoi dung thuong chi dien vai
-dong, 95 dong con lai la diem bo khong.
+Thiet ke bam theo DUNG cong thuc cham diem cua BTC (Debug/mark.md):
 
-Chay tren tap ket qua da co san (vai chuc ms, khong goi model):
+    R@k   = max{ R-Score cua k dap an dau }   voi k in {1, 5, 20, 50, 100}
+    Final = trung binh cong 5 gia tri R@k
 
-  1. Giu nguyen cac frame source="manual" o DAU danh sach.
-  2. Mo rong lan can thoi gian: cac keyframe cung video co pts_time trong
-     t +/- 3s, xep ngay sau frame thu cong tuong ung.
-  3. Lap phan con lai bang MMR thay vi top-k tho:
-         next = argmax [ lambda*rel(i) - (1-lambda)*max_{j da chon} sim(i,j) ]
-     de phu nhieu gia thuyet khac nhau thay vi 95 frame gan giong het nhau.
-  4. Khu trung lap: moi video toi da m frame, hai frame cung video cach nhau
-     it nhat 2 giay, loai cac frame trong danh sach ignore.
+Voi KIS, R-Score la nhi phan, nen Final chi phu thuoc MOT con so: thu hang r cua
+dap an DUNG DAU TIEN.
+
+    r = 1  -> 1.00      r = 6..20  -> 0.60      r = 51..100 -> 0.20
+    r = 2..5 -> 0.80    r = 21..50 -> 0.40      r > 100     -> 0
+
+Hai he qua dinh doat toan bo thuat toan nay:
+
+  (1) CHI dap an dung dau tien co gia tri. Dap an dung thu hai cong 0.
+  (2) Gia tri bien cua tung o lech nhau toi 5 lan (o 1 dang 1.00, o 100 dang
+      0.20).
+
+BAN TRUOC DUNG MMR VA DIEU DO LAM MAT DIEM. Do tren Debug/7_questions.json:
+
+    lay thang 100 ung vien dau, chi bo trung        Final 0.5714
+    MMR lambda=0.7, toi da 5 frame/video, cach 2s   Final 0.3429
+
+MMR day dap an dung XUONG. Cu the: Q3 co frame dung o vi tri 11 va Q4 o vi tri 9
+trong danh sach ung vien -- dang le duoc 0.60 diem moi cau -- nhung ca hai deu
+bi loai khoi 100 dong va thanh 0. Nguyen nhan la MMR do trung lap bang COSINE
+NHUNG:
+
+  · Hai frame khac VIDEO ma nhin giong nhau thi cosine cao -> bi phat, trong khi
+    ve mat cham diem chung khong trung lap chut nao (video A sai thi video B van
+    co the dung).
+  · Frame dung thuong RAT giong frame dau bang (cung canh quay) -> chinh no bi
+    phat nang nhat.
+
+Da dang hoa chi co loi khi dau bang hay sai. Do duoc: dau bang KHONG hay sai
+(video dung nam trong top-5 o 100% truy van cua bo eval). Nen:
+
+    O 1..20    giu NGUYEN thu hang tim kiem. Day la nhung o dang 0,60-1,00
+               diem; khong danh cuoc chung vao da dang hoa.
+    O 21..100  den duoc day nghia la 20 o dau DA TRUOT -- tuc la ta dang o
+               nhanh "dau bang sai". Chi luc do da dang hoa moi dang, va no
+               khong the lam mat gi nua.
+
+Con so 20 khong phai chon bua: no chinh la nguong k = 20 trong cong thuc.
+
+Do tren bo eval, dau=20 va khoang cach 8s:  Final 0.6000
+(so voi 0.5714 cua thu hang tho, va 0.3429 cua ban MMR cu)
 
 KHONG co khai niem "shot". Bo keyframe sinh ra bang lay mau theo do troi ngu
 nghia, khong theo ranh gioi canh, nen moi quan he lan can deu tinh theo
@@ -20,32 +53,15 @@ pts_time. Cot cos_to_prev khong duoc dung o day: phan bo cua no da bi chinh
 nguong lay mau cat cut nen khong phai tin hieu ranh gioi canh.
 """
 
-import numpy as np
-
 from retrieval.config import FusionConfig
 
+# Nguong xep hang trong cong thuc cua BTC.
+BREAKPOINTS = (1, 5, 20, 50, 100)
 
-class _Picker:
-    """Giu rang buoc khu trung lap: m frame/video va khoang cach toi thieu."""
 
-    def __init__(self, max_per_video, min_gap_sec):
-        self.max_per_video = max_per_video
-        self.min_gap_sec = min_gap_sec
-        self.per_video = {}
-
-    def accepts(self, video_id, pts_time):
-        times = self.per_video.get(video_id)
-        if times is None:
-            return True
-        if len(times) >= self.max_per_video:
-            return False
-        return all(abs(pts_time - t) >= self.min_gap_sec for t in times)
-
-    def take(self, video_id, pts_time, force=False):
-        if not force and not self.accepts(video_id, pts_time):
-            return False
-        self.per_video.setdefault(video_id, []).append(pts_time)
-        return True
+def slot_weight(i, breakpoints=BREAKPOINTS):
+    """Diem toi da mot o thu i (dem tu 1) co the mang lai."""
+    return sum(1 for k in breakpoints if k >= i) / len(breakpoints)
 
 
 def _lookup(store):
@@ -57,15 +73,29 @@ def _lookup(store):
     }
 
 
-def autofill(store, manual, candidates=None, config=None, ignore=None, target=None):
+def _as_dict(it):
+    if isinstance(it, dict):
+        return it
+    return it.model_dump() if hasattr(it, "model_dump") else dict(it)
+
+
+def autofill(store, manual, candidates=None, config=None, ignore=None,
+             target=None, head=None, tail_gap=None):
     """-> danh sach dap an da xep thu tu, dung schema Viec 2.
 
     manual      [{"video_id", "frame_idx"}] nguoi chon -- luon nam dau
-    candidates  [{"video_id", "frame_idx", "score"}] tap ket qua dang hien
+    candidates  [{"video_id", "frame_idx", "score"}] tap ket qua dang hien,
+                DA XEP HANG. Thu tu nay duoc ton trong o phan dau.
     ignore      [{"video_id", "frame_idx"}] hoac [(video_id, frame_idx)]
+    head        so o dau giu nguyen thu hang tim kiem (mac dinh cfg.autofill_head)
+    tail_gap    tu o head+1 tro di, hai frame cung video phai cach nhau it nhat
+                ngan nay giay; vi pham thi bi DAY XUONG CUOI chu khong bi loai
     """
     cfg = config or FusionConfig.load()
     target = target or cfg.autofill_target
+    head = getattr(cfg, "autofill_head", 20) if head is None else head
+    tail_gap = (getattr(cfg, "autofill_tail_gap_sec", 8.0)
+                if tail_gap is None else tail_gap)
     look = _lookup(store)
 
     ign = set()
@@ -75,11 +105,9 @@ def autofill(store, manual, candidates=None, config=None, ignore=None, target=No
         else:
             ign.add((it[0], int(it[1])))
 
-    picker = _Picker(cfg.max_per_video, cfg.min_gap_sec)
-    out = []
-    seen = set()
+    out, seen = [], set()
 
-    def emit(video_id, frame_idx, source, reason, force=False):
+    def emit(video_id, frame_idx, source, reason):
         key = (video_id, int(frame_idx))
         if key in seen or key in ign:
             return False
@@ -87,8 +115,6 @@ def autofill(store, manual, candidates=None, config=None, ignore=None, target=No
         if hit is None:
             return False
         gidx, pts = hit
-        if not picker.take(video_id, pts, force=force):
-            return False
         seen.add(key)
         out.append({
             "video_id": video_id,
@@ -100,89 +126,64 @@ def autofill(store, manual, candidates=None, config=None, ignore=None, target=No
         })
         return True
 
-    # --- 1 + 2: thu cong truoc, moi frame keo theo lan can cua no ----------
+    # --- 1. Frame nguoi dung tu chon: luon o dau, khong rang buoc gi ------
+    # Nguoi ngoi truoc man hinh da NHIN thay frame do. Khong co phong doan tu
+    # dong nao duoc phep day no xuong.
     for it in (manual or []):
-        # Chap nhan ca dict lan pydantic model, de noi goi khong phai nho
-        # model_dump() moi lan.
-        if not isinstance(it, dict):
-            it = it.model_dump() if hasattr(it, "model_dump") else dict(it)
-        vid = it.get("video_id")
-        fi = it.get("frame_idx")
-        if vid is None or fi is None:
-            continue
-        # force=True: rang buoc khu trung lap KHONG duoc day frame thu cong xuong
-        if not emit(vid, fi, "manual", "nguoi dung chon", force=True):
-            continue
-        base = look[(vid, int(fi))][1]
-        df = store.frames_of(vid)
-        if df.empty:
-            continue
-        w = cfg.neighbour_window_sec
-        near = df[(df["pts_time"] >= base - w) & (df["pts_time"] <= base + w)]
-        near = near.reindex(
-            near["pts_time"].sub(base).abs().sort_values().index)
-        for r in near.itertuples():
-            if len(out) >= target:
-                break
-            emit(vid, int(r.frame_idx), "autofill",
-                 f"lan can +/-{w}s cua {vid}#{int(fi)}")
+        it = _as_dict(it)
+        vid, fi = it.get("video_id"), it.get("frame_idx")
+        if vid is not None and fi is not None:
+            emit(vid, fi, "manual", "nguoi dung chon")
         if len(out) >= target:
-            break
+            return out[:target]
 
-    if len(out) >= target:
-        return out[:target]
-
-    # --- 3: MMR tren tap ung vien -----------------------------------------
+    # --- 2. Chuan hoa tap ung vien, GIU NGUYEN thu tu ---------------------
     pool = []
     for c in (candidates or []):
+        c = _as_dict(c)
         vid, fi = c.get("video_id"), c.get("frame_idx")
         if vid is None or fi is None:
             continue
         key = (vid, int(fi))
         if key in seen or key in ign or key not in look:
             continue
-        pool.append((key, float(c.get("score") or 0.0)))
+        if any(p[0] == key for p in pool):
+            continue
+        pool.append((key, look[key][1]))          # (khoa, pts_time)
     if not pool:
         return out[:target]
 
-    # Bo trung, giu diem cao nhat cho moi keyframe
-    best = {}
-    for key, s in pool:
-        if key not in best or s > best[key]:
-            best[key] = s
-    keys = list(best)
-    rel = np.array([best[k] for k in keys], dtype=np.float32)
-    # Dua rel ve [0,1] de lambda can bang duoc voi sim (cosine cung ~[0,1]).
-    if rel.size and float(rel.max() - rel.min()) > 1e-9:
-        rel = (rel - rel.min()) / (rel.max() - rel.min())
-    else:
-        rel = np.ones_like(rel)
+    # --- 3. Phan DAU: nguyen thu hang tim kiem ---------------------------
+    n_head = max(0, head - len(out))
+    for key, _ in pool[:n_head]:
+        emit(key[0], key[1], "autofill",
+             f"thu hang tim kiem (o 1-{head}, moi o dang "
+             f"{slot_weight(len(out) + 1):.2f} diem)")
 
-    gidxs = np.array([look[k][0] for k in keys], dtype=np.int64)
-    V = store.X[gidxs]                     # da L2-normalize -> dot = cosine
+    # --- 4. Phan DUOI: trai deu theo thoi gian ---------------------------
+    # Den duoc day nghia la cac o dau da truot -> gia thuyet "dung dau bang" sai
+    # -> phu them khoanh khac khac va video khac moi la viec dang lam.
+    picked = {}
+    for r in out:
+        picked.setdefault(r["video_id"], []).append(r["pts_time"])
 
-    chosen_g = [look[(o["video_id"], o["frame_idx"])][0] for o in out]
-    if chosen_g:
-        # max sim toi cac frame DA chon (ke ca cac frame thu cong)
-        max_sim = (V @ store.X[np.array(chosen_g, dtype=np.int64)].T).max(axis=1)
-    else:
-        max_sim = np.zeros(len(keys), dtype=np.float32)
-
-    lam = cfg.mmr_lambda
-    alive = np.ones(len(keys), dtype=bool)
-
-    while len(out) < target and alive.any():
-        mmr = lam * rel - (1.0 - lam) * max_sim
-        mmr[~alive] = -np.inf
-        i = int(np.argmax(mmr))
-        if not np.isfinite(mmr[i]):
+    deferred = []
+    for key, pts in pool[n_head:]:
+        if len(out) >= target:
             break
-        alive[i] = False
-        vid, fi = keys[i]
-        if not emit(vid, fi, "autofill",
-                    f"MMR lambda={lam} (rel={rel[i]:.2f}, sim={max_sim[i]:.2f})"):
-            continue
-        # cap nhat do tuong dong toi tap da chon
-        max_sim = np.maximum(max_sim, V @ V[i])
+        ts = picked.setdefault(key[0], [])
+        if all(abs(pts - t) >= tail_gap for t in ts):
+            if emit(key[0], key[1], "autofill",
+                    f"trai deu >= {tail_gap}s trong video (o {head + 1}+)"):
+                ts.append(pts)
+        else:
+            # DAY XUONG chu khong loai: dung sai cua ta chi la xap xi khoang
+            # [s, e] that cua BTC, loai nham thi mat han co hoi.
+            deferred.append(key)
+
+    for key in deferred:
+        if len(out) >= target:
+            break
+        emit(key[0], key[1], "autofill", "gan frame da chon, xep sau")
 
     return out[:target]

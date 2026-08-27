@@ -26,9 +26,9 @@ function ExplainBadge({ explain, why, rrfScore }) {
   if (entries.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-1 px-2 py-1 mb-1 text-xs rounded-md bg-slate-900/80">
+    <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-1.5 mt-2 mb-0.5 text-[11.5px] rounded-md bg-[color:var(--panel)] border border-[color:var(--line)]">
       {rrfScore !== undefined && rrfScore !== null && (
-        <span className="px-1.5 py-0.5 font-mono rounded bg-slate-700 text-slate-200">
+        <span className="mono px-1.5 py-0.5 rounded bg-[color:var(--panel-3)] text-[color:var(--ink)]">
           RRF {Number(rrfScore).toFixed(4)}
         </span>
       )}

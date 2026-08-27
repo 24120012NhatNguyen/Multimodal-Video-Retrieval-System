@@ -7,7 +7,7 @@ function Questions({ questions, username, setQuestionName, isLoading }) {
     <>
       <div
         key={questions}
-        className="w-80 top-10 left-0 h-80 bg-slate-900 rounded-md absolute flex-col gap-1y
+        className="panel w-80 top-9 left-0 h-80 z-30 shadow-2xl absolute flex-col gap-1
          content-start p-1"
         id="questions"
         onClick={(e) => {
@@ -22,7 +22,7 @@ function Questions({ questions, username, setQuestionName, isLoading }) {
           <LoadingIcon />
         ) : (
           <>
-            <div className="flex flex-wrap overflow-y-scroll bg-slate-800 gap-1 p-1 content-start h-40 flex-auto">
+            <div className="flex flex-wrap overflow-y-auto gap-1 p-1.5 content-start h-40 flex-auto">
               {questions.length > 0 &&
                 username &&
                 questions
@@ -37,7 +37,7 @@ function Questions({ questions, username, setQuestionName, isLoading }) {
                           setQuestionName(e.target.innerText);
                         }}
                         style={{ zIndex: 3 }}
-                        className={`break-words w-fit hover:ring-2 ring-orange-400 duration-300 transition-all active:border-2 border-amber-500 h-fit text-slate-300 text-base p-px rounded-md 
+                        className={`chip cursor-pointer break-words hover:border-[color:var(--accent)] hover:text-[color:var(--accent)] 
                       bg-orange-800`}
                       >
                         {question.question}
@@ -45,7 +45,7 @@ function Questions({ questions, username, setQuestionName, isLoading }) {
                     );
                   })}
             </div>
-            <div className="flex flex-wrap overflow-y-scroll bg-slate-800 gap-1 p-1 content-start h-40 flex-auto">
+            <div className="flex flex-wrap overflow-y-auto gap-1 p-1.5 content-start h-40 flex-auto">
               {questions.length > 0 &&
                 username &&
                 questions
@@ -60,7 +60,7 @@ function Questions({ questions, username, setQuestionName, isLoading }) {
                           setQuestionName(e.target.innerText);
                         }}
                         style={{ zIndex: 3 }}
-                        className={`w-fit hover:ring-2 ring-orange-400 duration-300 transition-all active:border-2 border-amber-500 h-fit text-slate-300 text-base p-px rounded-md 
+                        className={`chip cursor-pointer hover:border-[color:var(--accent)] hover:text-[color:var(--accent)] 
                       bg-slate-700`}
                       >
                         {question.question}

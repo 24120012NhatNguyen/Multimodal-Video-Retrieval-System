@@ -216,20 +216,21 @@ function panel({
   };
 
   return (
-    <div className="flex-col flex w-[728px] h-full flex-none">
-      <div className="flex w-[728px] justify-around mt-2 flex-auto">
+    <div className="flex-col flex w-[728px] h-full flex-none border-r border-[color:var(--line)] bg-[color:var(--bg-soft)]">
+      <div className="flex w-[728px] justify-between gap-2 mt-2 px-1 flex-none">
         {/* {search & icons} */}
-        <div className="flex flex-col w-[210px] mx-1">
-          <div className="mb-1 relative w-full hover:drop-shadow-[0px_2px_1px_rgba(255,255,255,0.2)]">
+        <div className="flex flex-col w-[200px] h-[270px] gap-1">
+          <div className="relative w-full shrink-0">
             <input
               tabIndex={-1}
               type="search"
-              placeholder="Search icons"
-              className="hover:ease-in-out transition-all placeholder:italic text-slate-300  relative w-full p-1 pl-4 rounded-full bg-slate-800"
+              placeholder="Tìm lớp object..."
+              className="inp inp--sm w-full"
               onChange={(e) => handleChange(e)}
             ></input>
           </div>
-          <div className="flex flex-wrap h-[140px] overflow-auto">
+          <div className="flex flex-wrap gap-0.5 flex-1 min-h-0 overflow-auto content-start
+                          rounded-md border border-[color:var(--line)] bg-[color:var(--panel)] p-1">
             {activeSearch.map((icon) => (
               <Icon
                 handleCreate={handleCreate}
@@ -239,7 +240,8 @@ function panel({
               />
             ))}
           </div>
-          <div className="flex flex-wrap h-[70px] overflow-auto">
+          <div className="flex flex-wrap gap-0.5 h-[62px] shrink-0 overflow-auto content-start
+                          rounded-md border border-[color:var(--line)] bg-[color:var(--panel)] p-1">
             {[
               "red",
               "white",
@@ -263,11 +265,11 @@ function panel({
           </div>
         </div>
         {/* {panel} */}
-        <div className="shadow-lg shadow-slate-900 rounded relative h-[270px] w-[270px] shrink-0 grow-0 bg-slate-100">
+        <div className="relative h-[270px] w-[270px] shrink-0 grow-0 rounded-lg bg-[color:var(--panel-3)] border border-[color:var(--line-2)] overflow-hidden">
           {[1 / 7, 2 / 7, 3 / 7, 4 / 7, 5 / 7, 6 / 7].map((ratio) => (
             <div
               style={{ left: ratio * PANEL_SIZE }}
-              className="absolute w-0.5 h-full bg-slate-800 opacity-50"
+              className="absolute w-px h-full bg-[color:var(--line-2)]"
               key={`left ${ratio}`}
             ></div>
           ))}
@@ -275,7 +277,7 @@ function panel({
             <div
               style={{ top: ratio * PANEL_SIZE }}
               key={`top ${ratio}`}
-              className="absolute h-0.5 w-full bg-slate-800 opacity-50"
+              className="absolute h-px w-full bg-[color:var(--line-2)]"
             ></div>
           ))}
           {/* <DragObject type="test" id="0" /> */}
@@ -292,11 +294,11 @@ function panel({
             })}
         </div>
         {/* {tags} */}
-        <div className="w-[240px] flex flex-col">
-          <div className="h-[115px] w-[240px]">
+        <div className="w-[236px] h-[270px] flex flex-col gap-1">
+          <div className="h-[118px] w-full shrink-0">
             <SearchTag addTag={addTag} vocab={vocab.names} counts={vocabCounts} />
           </div>
-          <div className="h-[170px] w-[240px]">
+          <div className="flex-1 min-h-0 w-full">
             <GetTagRec
               setRecTags={setRecTags}
               recTags={recTags}
@@ -307,18 +309,18 @@ function panel({
         </div>
       </div>
       {vocab && vocab.indexOk === false && (
-        <div className="text-xs text-amber-400 px-1 py-0.5">
+        <div className="mx-1 mb-1 text-[11.5px] leading-snug px-2 py-1.5 rounded-md border border-[color:var(--accent)] bg-[color:var(--accent-dim)] text-[color:var(--accent)]">
           Index object chưa sẵn sàng ({vocab.indexError || "không rõ"}) — tìm
           theo lớp/vị trí sẽ trả về rỗng. Chạy: python -m retrieval.objects build
         </div>
       )}
-      <div className="ocr flex gap-1 w-[728px] mb-1">
+      <div className="ocr flex gap-1.5 w-[728px] mb-1.5 px-1">
         <div className="relative flex-auto">
           <input
             tabIndex={3}
             type="search"
-            placeholder="OCR"
-            className=" placeholder:italic text-slate-300 relative w-full p-1 pl-4 rounded-full bg-slate-800 hover:ease-in-out transition-all hover:drop-shadow-[0px_2px_1px_rgba(255,255,255,0.2)]"
+            placeholder="Chữ trên hình chứa..."
+            className="inp inp--sm w-full"
             onChange={(e) => setOcr(e.target.value)}
           ></input>
         </div>
@@ -326,20 +328,24 @@ function panel({
           <input
             tabIndex={3}
             type="search"
-            placeholder="ASR"
-            className=" placeholder:italic text-slate-300  relative w-full p-1 pl-4 rounded-full bg-slate-800 hover:ease-in-out transition-all hover:drop-shadow-[0px_2px_1px_rgba(255,255,255,0.2)]"
+            placeholder="Lời nói chứa..."
+            className="inp inp--sm w-full"
             onChange={(e) => setAsr(e.target.value)}
           ></input>
         </div>
       </div>
       {/* {selected tags} */}
-      <div className="tagsAndButtons flex w-[728px] gap-1">
-        <div className="h-[56px]  overflow-auto flex-wrap p-1 bg-slate-800 text-white w-32 gap-1 rounded-md flex-auto flex">
+      <div className="tagsAndButtons flex w-[728px] gap-1.5 items-center px-1 mt-1">
+        <div className="h-[34px] overflow-auto flex-wrap p-1 w-32 gap-1 flex-auto flex items-center
+                        rounded-md bg-[color:var(--panel)] border border-[color:var(--line)]">
+          {tags.length === 0 && (
+            <span className="text-[11px] text-[color:var(--muted)] px-1">Chưa chọn lớp nào</span>
+          )}
           {tags.length > 0 &&
             tags.map((tag) => (
               <span
                 key={tag}
-                className="h-8 relative cursor-pointer hover:ring-2 ring-slate-400 w-max bg-slate-800 p-0.5 rounded-md"
+                className="chip h-fit"
               >
                 {tag.replace(/_/g, " ")}
               </span>
@@ -349,26 +355,26 @@ function panel({
           value={maxObj}
           tabIndex={2}
           type="text"
-          placeholder="Specify maximum number of objects..."
-          className="scroll-smooth flex-auto placeholder:italic resize-none text-slate-300 relative w-32 p-1 pl-2 rounded-md  bg-slate-800"
+          placeholder="Giới hạn số lượng — vd: Person 2"
+          className="inp inp--sm flex-auto resize-none w-40 h-[34px] py-1.5 leading-tight text-[11.5px]"
           onChange={(e) => setMaxObj(e.target.value)}
         ></textarea>
         <input
           tabIndex={-1}
           id="panelK"
           type="search"
-          placeholder="K"
-          className="w-12 flex-none transition-all hover:drop-shadow-[0px_4px_3px_rgba(255,255,255,0.2)] placeholder:italic  text-slate-300  relative p-0.5 indent-1 rounded-md bg-slate-800"
+          placeholder="Số ảnh"
+          className="inp inp--sm inp--num w-14 flex-none"
           onChange={(e) => {
             const val = e.target.value === "" ? 500 : Number(e.target.value);
             setPanelK(Number.isNaN(val) ? 500 : val);
           }}
           value={panelK}
         ></input>
-        <div className="ml-auto flex gap-1">
+        <div className="ml-auto flex items-center gap-1.5">
           <label
             htmlFor="use id"
-            className="flex-col flex justify-center items-center cursor-pointer pl-0.5  w-8 h-14  rounded-md bg-slate-800 hover:bg-slate-800 hover:border transition hover:scale-90"
+            className="chk"
           >
             <input
               defaultChecked={true}
@@ -386,27 +392,27 @@ function panel({
               setVideos([]);
             }}
             type="button"
-            className="w-14 h-14 rounded-md bg-slate-800 hover:bg-slate-800 hover:border transition hover:scale-90"
+            className="btn btn--sm"
           >
-            Clear
+            Xoá kết quả
           </button>
           <button
             onClick={() => {
               clearPanel();
             }}
             type="button"
-            className="w-14 h-14 rounded-md bg-slate-800 hover:bg-slate-800 hover:border transition hover:scale-90"
+            className="btn btn--sm"
           >
-            Clear Panel
+            Xoá khung
           </button>
           <button
             onClick={() => {
               clearTags();
             }}
             type="button"
-            className="w-14 h-14  rounded-md bg-slate-800 hover:bg-slate-800 hover:border transition hover:scale-90"
+            className="btn btn--sm"
           >
-            Clear Tags
+            Xoá tag
           </button>
           <button
             onClick={() => {
@@ -419,9 +425,9 @@ function panel({
               }
             }}
             type="button"
-            className="w-14 h-14 border-orange-400 border-2 focus:bg-gradient-to-tr hover:bg-gradient-to-bl from-orange-400 via-red-500 to-red-400 rounded-md bg-slate-800 hover:bg-slate-800 hover:border transition-all hover:scale-90 focus:text-slate-900 hover: focus:font-semibold"
+            className="btn btn--accent px-5"
           >
-            Send
+            Tìm
             {/* {Clear & Send button} */}
           </button>
         </div>

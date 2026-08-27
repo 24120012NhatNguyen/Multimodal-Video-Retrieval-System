@@ -12,11 +12,12 @@ function Lock({ lock, setLock }) {
           return !old
         });
       }}
-      className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md cursor-pointer hover:outline-1">
+      title={lock ? "Bấm để sửa tên" : "Bấm để khoá tên lại"}
+      className="absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer p-0.5 rounded text-[color:var(--muted)] hover:text-[color:var(--accent)] transition">
       {lock ? (
-        <AiOutlineLock className="w-6 h-6" />
+        <AiOutlineLock className="w-4 h-4" />
       ) : (
-        <AiOutlineUnlock className="w-6 h-6" />
+        <AiOutlineUnlock className="w-4 h-4" />
       )}
     </div>
   );

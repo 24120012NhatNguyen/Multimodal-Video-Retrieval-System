@@ -39,23 +39,24 @@ function SearchTag({ addTag, vocab, counts }) {
     <div className="flex flex-wrap relative h-full w-full hover:ease-in-out transition-all ">
       <input
         type="search"
-        placeholder={isReal ? "Tìm lớp object (dữ liệu thật)" : "Search for tags"}
+        placeholder={isReal ? "Tìm lớp object..." : "Tìm tag (chưa tải được danh sách thật)"}
         title={
           isReal
             ? "Danh sách lấy từ chính dữ liệu object của BTC — gõ ra là chắc chắn có"
             : "Chưa tải được /data — đang dùng danh sách chép cứng, phần lớn không có trong dữ liệu"
         }
-        className="h-fit transition-all hover:drop-shadow-[0px_2px_1px_rgba(255,255,255,0.2)] placeholder:italic text-slate-300 text-lg w-full p-1 pl-4 rounded-full bg-slate-800"
+        className="inp inp--sm w-full"
         onChange={(e) => setQ(e.target.value)}
       ></input>
       {shown.length > 0 && (
-        <div className="h-[75px] overflow-auto flex-wrap p-1 gap-1 bg-slate-800 text-white w-full rounded-md flex-auto flex">
+        <div className="mt-1 h-[74px] overflow-auto flex flex-wrap content-start gap-1 p-1.5 w-full
+                        rounded-md border border-[color:var(--line)] bg-[color:var(--panel)]">
           {shown.map((tag) => (
             <span
               key={tag}
               onClick={() => addTag(tag)}
               title={counts && counts[tag] ? `${counts[tag]} lần xuất hiện` : ""}
-              className="h-fit relative cursor-pointer hover:ring-2 ring-slate-400 w-max bg-slate-700 p-0.5 rounded-md "
+              className="chip cursor-pointer hover:border-[color:var(--accent)] hover:text-[color:var(--accent)]"
             >
               {tag.replace(/_/g, " ")}
             </span>
@@ -63,8 +64,8 @@ function SearchTag({ addTag, vocab, counts }) {
         </div>
       )}
       {!isReal && (
-        <div className="text-[10px] text-amber-500 w-full px-1">
-          chưa tải được danh sách lớp từ backend
+        <div className="text-[10px] text-[color:var(--accent)] w-full px-1 pt-0.5">
+          chưa tải được danh sách lớp từ backend — đang dùng danh sách chép cứng
         </div>
       )}
     </div>

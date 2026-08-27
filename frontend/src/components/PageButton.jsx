@@ -16,13 +16,11 @@ function PageButton({ totalPage, autoFetch, isFilter, showAutoFetch, page, setPa
   }, [page])
 
   return (
-    <div className="flex flex-wrap justify-center relative w-full my-1">
+    <div className="flex flex-wrap items-center justify-center gap-1.5 relative w-full my-3">
       {
         // page > 0 &&
         <button
-          className={`bg-slate-800 text-gray-200 font-bold py-2 px-4 rounded-l transition ease-in-out enabled:hover:bg-indigo-700
-          disabled:cursor-not-allowed disabled:opacity-50
-            `}
+          className="btn btn--sm"
           disabled={page <= 0}
           onClick={() => {
             document.getElementById(DivID).scrollTop = 0;
@@ -32,11 +30,13 @@ function PageButton({ totalPage, autoFetch, isFilter, showAutoFetch, page, setPa
           <AiFillCaretLeft />
         </button>
       }
-      <div className="bg-slate-800 py-2 px-2 text-sky-300 ">
-        {page > totalPage ? totalPage : page}/{totalPage}
+      <div className="mono px-3 h-7 flex items-center rounded-md text-[12px]
+                      bg-[color:var(--panel)] border border-[color:var(--line)] text-[color:var(--ink-2)]">
+        Trang {page > totalPage ? totalPage : page}<span className="text-[color:var(--muted)]">/{totalPage}</span>
       </div>
       <button
-        className="bg-slate-800 hover:bg-indigo-700 text-gray-200 font-bold py-2 px-4 rounded-r transition ease-in-out "
+        className="btn btn--sm"
+        disabled={page >= totalPage}
         onClick={() => {
           document.getElementById(DivID).scrollTop = 0;
           if (autoIgnore) handleAutoIgnore(page);

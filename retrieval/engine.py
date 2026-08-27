@@ -139,7 +139,18 @@ class FusionEngine:
         # --- kenh siglip: TIENG ANH ---------------------------------------
         if (query_en and query_en.strip() and mode_of("siglip") != "off"
                 and (wanted is None or "siglip" in wanted)):
-            queries = [q.strip() for q in query_en.split("\n") if q.strip()]
+            # Cang it nhom cang tot, moi nhom vua gioi han token. Xem pack_queries.
+            #
+            # DO tren Debug/7_questions.json bang cong thuc cham cua BTC:
+            #     LLM phan ra 4-5 menh de, cham diem tung menh de   Final 0.2571
+            #     cung ban dich do, gop thanh MOT chuoi             Final 0.5714
+            #
+            # Ly do: tung menh de roi le deu la mo ta chung chung khop hang nghin
+            # frame ("mot nguoi deo kinh"); suc phan biet nam o PHEP HOI cua
+            # chung. Cong diem tot nhat cua tung menh de lam mat dung phep hoi do.
+            # Menh de rieng le van duoc giu trong `clauses_en` cho DP/TRAKE --
+            # cho do that su can diem cua TUNG su kien.
+            queries = pack_queries(query_en, self.encoder)
             try:
                 self.store.assert_encoder_matches(self.encoder)
                 lists["siglip"] = siglip_video_rank(
@@ -404,8 +415,15 @@ class FusionEngine:
                 use_siglip = False
 
         if use_siglip:
-            q = query_en.strip().split("\n")[0].strip()
-            rows = self._frames_allocated(q, video_ids, topk + n_ignore)
+            # TOAN BO truy van, khong phai menh de dau tien.
+            #
+            # Ban truoc lay `query_en.split("\n")[0]` -- tang video dung moi
+            # menh de con tang frame chi dung menh de DAU. Menh de dau thuong la
+            # canh nen ("ba nguoi dang di bo"), khong phai chi tiet phan biet
+            # ("ao mua in hinh con gau"), nen frame duoc xep bang dung thu it
+            # thong tin nhat.
+            qs = pack_queries(query_en, self.encoder)
+            rows = self._frames_allocated(qs, video_ids, topk + n_ignore)
         else:
             # Khong co encoder: van tra ve frame cua dung nhung video da duoc
             # xep hang boi cac kenh van ban. Chia deu han muc cho tung video --
@@ -464,9 +482,13 @@ class FusionEngine:
         mask = self.store.rows_for_videos(video_ids)
         if not mask.any():
             return []
-        v = self.encoder.encode_texts([query])[0]
+        qs = [query] if isinstance(query, str) else list(query)
+        Q = self.encoder.encode_texts(qs)
         sub = self.store.meta[mask].copy()
-        sub["score"] = self.store.X[mask] @ v
+        S = self.store.X[mask] @ Q.T
+        # Trung binh, khong phai max: cac nhom la cac PHAN cua cung mot mo ta,
+        # nen frame dung phai khop TAT CA. Max se thanh phep tuyen.
+        sub["score"] = S.mean(axis=1)
         ranked = sub.sort_values("score", ascending=False).to_dict("records")
 
         order = {vid: i for i, vid in enumerate(video_ids)}
@@ -530,6 +552,59 @@ class FusionEngine:
                                 if n in VI_CHANNELS and lst else [])}
             for n, lst in lists.items()
         }
+
+
+def clauses_of(query_en):
+    return [q.strip().rstrip(".") for q in str(query_en or "").split("\n") if q.strip()]
+
+
+def join_query(query_en):
+    """Nhieu dong menh de -> MOT chuoi truy van."""
+    return ". ".join(clauses_of(query_en))
+
+
+def pack_queries(query_en, encoder=None, budget=None):
+    """Menh de -> danh sach chuoi, MOI chuoi vua trong gioi han token cua SigLIP.
+
+    Ba cach deu da do tren Debug/7_questions.json (MRR theo thu hang frame):
+
+        chi menh de dau                     0.348   bo mat chi tiet phia sau
+        gop het thanh mot chuoi             0.276   BI CAT CUT o 64 token
+        cham diem tung menh de roi lay max  0.228   mat phep hoi giua cac menh de
+
+    Ca ba deu sai theo mot kieu khac nhau, va nguyen nhan goc la GIOI HAN 64
+    TOKEN cua SigLIP -- chua tung duoc kiem o dau. Truy van Q4 gop lai dai 93
+    token, bi cat mat "cot moc dinh do" va "vat mau xanh la", tut tu hang 9
+    xuong khong tim thay.
+
+    Cach o day: don menh de thanh CANG IT NHOM CANG TOT, moi nhom vua 64 token.
+    Vua het trong mot nhom -> giu tron phep hoi, truong hop tot nhat. Khong vua
+    -> chia lam vai nhom, moi nhom van la mot cau hoan chinh, roi cham diem
+    trung binh (phep hoi giua cac nhom) thay vi lay max (phep tuyen).
+    """
+    parts = clauses_of(query_en)
+    if not parts:
+        return []
+    if encoder is None:
+        return [". ".join(parts)]
+    budget = budget or getattr(encoder, "MAX_LENGTH", 64)
+    try:
+        if encoder.n_tokens(". ".join(parts)) <= budget:
+            return [". ".join(parts)]
+    except Exception:
+        return [". ".join(parts)]
+
+    out, cur = [], []
+    for p in parts:
+        trial = ". ".join(cur + [p])
+        if cur and encoder.n_tokens(trial) > budget:
+            out.append(". ".join(cur))
+            cur = [p]
+        else:
+            cur.append(p)
+    if cur:
+        out.append(". ".join(cur))
+    return out or [". ".join(parts)]
 
 
 def keyframe_url(video_id, frame_idx):

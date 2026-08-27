@@ -299,16 +299,63 @@ def autofill_endpoint(request: AutofillRequest):
     # request.manual la list AnswerEntry (pydantic), khong phai dict --
     # autofill() doc bang .get() nen phai model_dump() truoc.
     manual = [m.model_dump() for m in request.manual]
+
+    # Mo rong tap ung vien vuot ra ngoai luoi dang hien.
+    #
+    # Luoi tren man hinh co k anh (mac dinh 500) vi day la thu nguoi dung NHIN
+    # duoc. Bai nop lai co 100 o va cham theo thu hang -- khong co ly do gi de
+    # 100 o do bi gioi han boi so anh hien tren man hinh. Do duoc: pool 500 ->
+    # Final 0.6000, pool 3000 -> 0.6286.
+    cands = list(request.candidates or [])
+    pool_note = None
+    q_vi = request.query_vi or ""
+    q_en = request.query_en or ""
+    if q_vi.strip() or q_en.strip():
+        try:
+            from retrieval.query import decompose
+
+            dq = decompose(query_vi=q_vi, query_en=q_en, use_llm=False,
+                           kind=request.kind)
+            pool_k = request.pool_topk or getattr(
+                svc["config"], "autofill_pool_topk", 3000)
+            wide = svc["engine"].search(
+                query_en=dq.query_en, query_vi=dq.query_vi,
+                frame_topk=pool_k, kind=dq.kind)
+            extra = []
+            for v in wide.get("videos", []):
+                vi = v["video_info"]
+                for j, fi in enumerate(vi["lst_keyframe_idxs"]):
+                    extra.append({"video_id": v["video_id"], "frame_idx": int(fi),
+                                  "score": (vi.get("lst_scores") or [None])[j]})
+            # Ung vien tren man hinh giu nguyen thu tu o DAU; phan mo rong noi sau.
+            have = {(c.get("video_id"), int(c.get("frame_idx")))
+                    for c in cands if c.get("frame_idx") is not None}
+            n_before = len(cands)
+            cands += [e for e in extra if (e["video_id"], e["frame_idx"]) not in have]
+            pool_note = (f"mo rong tap ung vien tu {n_before} len {len(cands)} "
+                         f"(ngoai luoi dang hien)")
+        except Exception as e:
+            pool_note = f"khong mo rong duoc tap ung vien: {type(e).__name__}: {e}"
+
     out = autofill(
-        svc["store"], manual, request.candidates,
-        config=svc["config"], ignore=request.ignore, target=request.target
+        svc["store"], manual, cands,
+        config=svc["config"], ignore=request.ignore, target=request.target,
+        head=request.head, tail_gap=request.tail_gap_sec,
     )
     n_manual = sum(1 for e in out if e["source"] == "manual")
+    from retrieval.autofill import slot_weight
+
     return {
         "answers": out,
         "n": len(out),
         "n_manual": n_manual,
         "n_autofill": len(out) - n_manual,
+        "n_ung_vien": len(cands),
+        "ghi_chu": pool_note,
+        # De UI hien duoc gia tri cua tung o theo cong thuc cham cua BTC.
+        "gia_tri_o": {"1": slot_weight(1), "2-5": slot_weight(2),
+                      "6-20": slot_weight(6), "21-50": slot_weight(21),
+                      "51-100": slot_weight(51)},
     }
 
 @app.get("/diagnostics")

@@ -1,10 +1,12 @@
 import React from "react";
+import Segmented from "./ui/Segmented.jsx";
 
-// Truy vấn này được xếp loại thế nào, và AI quyết định.
+// Dóng hàng thời gian (DP) + hệ thống đang xếp truy vấn này vào loại nào.
 // Người dùng cần thấy được điều đó để biết khi nào nên can thiệp bằng tay.
+
 const KIND_LABEL = {
-  generic_chain: "Chuỗi hành động chung chung",
-  anchored: "Có mỏ neo riêng biệt",
+  generic_chain: "Chuỗi hành động chung",
+  anchored: "Có mỏ neo riêng",
 };
 
 const SOURCE_LABEL = {
@@ -17,62 +19,40 @@ function QueryKind({ meta, alignMode, setAlignMode }) {
   const q = meta && meta.query;
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 px-2 py-1 text-xs rounded-md bg-slate-900/80 text-slate-300">
-      <span className="text-slate-500">Dóng hàng thời gian:</span>
-      {[
-        ["auto", "Tự động"],
-        ["on", "Bật"],
-        ["off", "Tắt"],
-      ].map(([v, label]) => (
-        <button
-          key={v}
-          type="button"
-          onClick={() => setAlignMode(v)}
-          title={
-            v === "auto"
-              ? "Để hệ thống tự phân loại truy vấn"
-              : v === "on"
-              ? "Ép dóng hàng, kể cả khi hệ thống cho là không cần"
-              : "Ép tắt, dùng tìm phẳng"
-          }
-          className={`px-1.5 py-0.5 rounded transition ${
-            alignMode === v
-              ? "bg-amber-600 text-white"
-              : "bg-slate-700 hover:bg-slate-600"
-          }`}
-        >
-          {label}
-        </button>
-      ))}
+    <div className="grp flex-wrap gap-y-1.5">
+      <Segmented
+        label="Dóng hàng"
+        value={alignMode}
+        onChange={setAlignMode}
+        options={[
+          { value: "auto", label: "Tự",
+            title: "Để hệ thống tự phân loại truy vấn" },
+          { value: "on", label: "Bật", tone: "on",
+            title: "Ép dóng hàng — dùng khi truy vấn là chuỗi hành động THEO THỨ TỰ mà từng cảnh rời đều tầm thường" },
+          { value: "off", label: "Tắt", tone: "off",
+            title: "Ép tắt, dùng tìm phẳng" },
+        ]}
+      />
 
       {q && (
         <>
-          <span className="mx-1 text-slate-600">|</span>
           <span
             title={q.kind_why || ""}
-            className={`px-1.5 py-0.5 rounded ${
-              q.kind === "generic_chain"
-                ? "bg-sky-800 text-sky-100"
-                : "bg-emerald-800 text-emerald-100"
-            }`}
+            className={`chip ${q.kind === "anchored" ? "chip--on" : ""}`}
           >
             {KIND_LABEL[q.kind] || q.kind}
-          </span>
-          <span className="text-slate-500">
-            ({SOURCE_LABEL[q.kind_source] || q.kind_source})
+            <span className="text-[color:var(--muted)]">
+              · {SOURCE_LABEL[q.kind_source] || q.kind_source}
+            </span>
           </span>
           {q.anchors && q.anchors.length > 0 && (
-            <span className="px-1.5 py-0.5 rounded bg-slate-700">
-              mỏ neo: {q.anchors.join(", ")}
+            <span className="chip" title="Danh từ riêng hệ thống dò được">
+              {q.anchors.join(", ")}
             </span>
           )}
-          {meta.aligned && (
-            <span className="px-1.5 py-0.5 rounded bg-amber-700 text-amber-100">
-              đã dóng hàng
-            </span>
-          )}
+          {meta.aligned && <span className="chip chip--warn">đã dóng hàng</span>}
           {!meta.aligned && meta.alignSkipped && (
-            <span className="text-slate-500" title={meta.alignSkipped}>
+            <span className="chip chip--off" title={meta.alignSkipped}>
               không dóng hàng
             </span>
           )}

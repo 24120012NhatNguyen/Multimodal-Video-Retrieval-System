@@ -5,6 +5,38 @@ import { BiFileFind, BiSolidVideos, BiHide } from "react-icons/bi";
 import Image from "next/image";
 import { imageUrl } from "../helper/web_url.js";
 
+// Thẻ một keyframe.
+//
+// Bản trước: bốn nút tròn trắng chỉ có icon, không nhãn — phải học thuộc mới
+// biết nút nào làm gì. Và mỗi thẻ viền trắng dày, bốn góc gắn bốn ô xám đục
+// che mất ảnh. Bản này: nhãn chữ trên mọi nút, viền tối, huy hiệu góc trong mờ.
+
+function ActionButton({ id, onClick, icon, label, href, tone }) {
+  const cls =
+    "flex flex-col items-center justify-center gap-0.5 w-[52px] h-[46px] rounded-md " +
+    "bg-[color:var(--panel-2)]/95 border border-[color:var(--line-2)] " +
+    "text-[color:var(--ink-2)] hover:text-[color:var(--ink)] " +
+    "hover:border-[color:var(--accent)] hover:bg-[color:var(--panel-3)] transition";
+  const inner = (
+    <>
+      {icon}
+      <span className="text-[9.5px] leading-none font-medium">{label}</span>
+    </>
+  );
+  if (href) {
+    return (
+      <a id={id} target="_blank" rel="noreferrer" href={href} className={cls} title={label}>
+        {inner}
+      </a>
+    );
+  }
+  return (
+    <button type="button" id={id} onClick={onClick} className={cls} title={label}>
+      {inner}
+    </button>
+  );
+}
+
 function ImageList({
   imagepath,
   id,
@@ -21,168 +53,129 @@ function ImageList({
   questionName,
 }) {
   const [answerText, setAnswerText] = useState("");
-
-  const handleOpacity = () => {
-    if (feedbackMode && imgFeedback !== undefined) return "opacity-90";
-    else return "group-hover:opacity-90";
-  };
+  const showOverlay =
+    feedbackMode && imgFeedback !== undefined ? "opacity-100" : "opacity-0 group-hover:opacity-100";
 
   return (
     <div
-      className={`m-0.5 group duration-300 shrink-0 bg-slate-300 p-0.5 h-max  relative rounded-lg inline-flex relative mb-0.5
-         
-      `}
+      className={`group relative shrink-0 rounded-lg overflow-hidden border transition
+        ${
+          isIgnored
+            ? "border-[color:var(--bad)] opacity-45"
+            : "border-[color:var(--line)] hover:border-[color:var(--accent)]"
+        }`}
       key={id}
     >
-      <div className="group inline-flex relative h-[120px] w-[213px]">
-        <Image
-          src={imageUrl(imagepath)}
-          // src={"/shoes.jpg"}
-          fill={true}
-          className=" duration-300 relative rounded-md"
-        />
+      <div className="relative h-[120px] w-[213px] bg-[color:var(--bg-soft)]">
+        <Image src={imageUrl(imagepath)} alt={`keyframe ${id_show}`} fill={true} className="object-cover" />
+
+        {/* lớp phủ thao tác */}
         <div
-          className={`flex gap-1 justify-center items-center  duration-300  rounded-md absolute inset-0 bg-slate-900 opacity-0
-        ${handleOpacity()}
-        `}
+          className={`absolute inset-0 flex flex-wrap gap-1 justify-center items-center
+                      bg-[color:var(--bg)]/85 backdrop-blur-[2px] transition-opacity duration-200 ${showOverlay}`}
         >
           {feedbackMode ? (
-            // true
             <>
               <button
                 type="button"
                 id={"like" + id}
-                onClick={() => {
-                  handleFeedback(id, "lst_pos_idxs");
-                }}
-                className={`flex relative w-12 h-12 rounded-full bg-slate-100 flex justify-center items-center
-                 duration-300 hover:scale-90
-                 ${
-                   imgFeedback === "like"
-                     ? `scale-75 bg-gradient-to-br from-lime-600 to-emerald-600`
-                     : ""
-                 }
-                 `}
+                onClick={() => handleFeedback(id, "lst_pos_idxs")}
+                title="Đánh dấu ảnh này ĐÚNG"
+                className={`flex flex-col items-center gap-0.5 w-[62px] h-[52px] justify-center rounded-md border transition
+                  ${
+                    imgFeedback === "like"
+                      ? "bg-[color:var(--good-dim)] border-[color:var(--good)] text-[color:var(--good)]"
+                      : "bg-[color:var(--panel-2)] border-[color:var(--line-2)] text-[color:var(--ink-2)] hover:border-[color:var(--good)] hover:text-[color:var(--good)]"
+                  }`}
               >
-                <AiFillLike
-                  className={`
-                    ${
-                      imgFeedback === "like" ? `text-lime-50` : "text-lime-600 "
-                    }
-                `}
-                  fontSize="1.75rem"
-                />
+                <AiFillLike fontSize="1.25rem" />
+                <span className="text-[10px] font-medium leading-none">Đúng</span>
               </button>
               <button
                 type="button"
                 id={"dislike" + id}
-                onClick={() => {
-                  handleFeedback(id, "lst_neg_idxs");
-                }}
-                className={`flex relative w-12 h-12 rounded-full bg-slate-100 flex justify-center items-center
-                 duration-300 hover:scale-90
-                 ${
-                   imgFeedback === "dislike"
-                     ? `scale-75 bg-gradient-to-br from-orange-700 to-red-600`
-                     : ""
-                 }`}
+                onClick={() => handleFeedback(id, "lst_neg_idxs")}
+                title="Đánh dấu ảnh này SAI"
+                className={`flex flex-col items-center gap-0.5 w-[62px] h-[52px] justify-center rounded-md border transition
+                  ${
+                    imgFeedback === "dislike"
+                      ? "bg-[color:var(--bad-dim)] border-[color:var(--bad)] text-[color:var(--bad)]"
+                      : "bg-[color:var(--panel-2)] border-[color:var(--line-2)] text-[color:var(--ink-2)] hover:border-[color:var(--bad)] hover:text-[color:var(--bad)]"
+                  }`}
               >
-                <AiFillDislike
-                  className={`
-                    ${
-                      imgFeedback === "dislike" ? `text-red-50` : "text-red-600"
-                    }
-                `}
-                  fontSize="1.75rem"
-                />
+                <AiFillDislike fontSize="1.25rem" />
+                <span className="text-[10px] font-medium leading-none">Sai</span>
               </button>
             </>
           ) : (
             <>
-              <button
-                type="button"
+              <ActionButton
                 id={"knn" + id}
                 onClick={() => handleKNN(id)}
-                className=" flex relative w-10 h-10 rounded-full bg-slate-200 flex justify-center items-center
-                   duration-300 hover:scale-90 pointer-cursor"
-              >
-                <BiFileFind color="black" fontSize="1.5rem" />
-                {/* <Tooltip
-                  anchorId={"knn" + id}
-                  place="bottom"
-                  content="KNN"
-                  className="tracking-wider font-semibold"
-                  style={{
-                    backgroundColor: "rgb(226 232 240)",
-                    color: "rgb(2 6 23)",
-                    fontSize: "large",
-                  }}
-                ></Tooltip> */}
-              </button>
-              <button
-                type="button"
+                icon={<BiFileFind fontSize="1.2rem" />}
+                label="Ảnh giống"
+              />
+              <ActionButton
                 id={"shot" + id}
-                className=" flex relative w-10 h-10 rounded-full bg-slate-200 flex justify-center items-center
-                   duration-300 hover:scale-90"
-              >
-                <a
-                  target="_blank"
-                  href={`shot?id=${id}&questionName=${questionName}`}
-                  className="flex items-center justify-center w-full h-full rounded-full pointer-cursor"
-                >
-                  <BiSolidVideos color="black" fontSize="1.5rem" />
-                </a>
-              </button>
-              <button
+                href={`shot?id=${id}&questionName=${questionName}`}
+                icon={<BiSolidVideos fontSize="1.2rem" />}
+                label="Cả video"
+              />
+              <ActionButton
                 id={"select" + id}
                 onClick={handleSelect}
-                className={`flex relative w-10 h-10 rounded-full bg-slate-200 flex justify-center items-center
-                   duration-300 hover:scale-90 pointer-cursor`}
-              >
-                <AiOutlineSelect color="black" fontSize="1.5rem" />
-              </button>
-              <button
+                icon={<AiOutlineSelect fontSize="1.2rem" />}
+                label="Chọn"
+              />
+              <ActionButton
                 id={"sendView" + id}
                 onClick={() => addView(id, answerText)}
-                className={`flex relative w-10 h-10 rounded-full bg-slate-200 flex justify-center items-center
-                   duration-300 hover:scale-90 pointer-cursor`}
-              >
-                <BsDatabaseAdd color="black" fontSize="1.5rem" />
-              </button>
+                icon={<BsDatabaseAdd fontSize="1.2rem" />}
+                label="Thêm đáp án"
+              />
               <input
                 type="text"
-                placeholder="Answer"
+                placeholder="Câu trả lời (Q&A)"
                 value={answerText}
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) => setAnswerText(e.target.value)}
-                className="w-16 h-8 text-xs p-1 rounded-sm text-black"
+                title="Chỉ cần cho dạng bài Hỏi–Đáp"
+                className="inp inp--sm w-[168px] h-7 text-[11px] px-2"
               />
             </>
           )}
         </div>
       </div>
-      {isIgnored && (
-        <div className="border absolute bottom-2 left-1/2 rounded-full -translate-x-1/2  bg-slate-900 flex items-center justify-center text-red-500">
-          <BiHide className="w-10 h-8" />
-        </div>
-      )}
-      <div
-        className={`rounded-md p-1 absolute top-0 left-0 bg-slate-300 text-lg text-slate-900 font-semibold`}
-      >
+
+      {/* huy hiệu góc: trong mờ, không che mất ảnh */}
+      <span className="mono absolute top-1 left-1 px-1.5 py-0.5 rounded text-[11px] font-medium
+                       bg-[color:var(--bg)]/75 text-[color:var(--ink)] pointer-events-none">
         {id_show}
-      </div>
-      <div
+      </span>
+
+      <button
+        type="button"
         onClick={() => handleIgnore(id)}
-        className={`rounded-lg ring-red-400 hover:ring-2 hover:bg-red-400  transition cursor-pointer p-0.5 absolute top-0 right-0 bg-slate-300 text-slate-900`}
+        title={isIgnored ? "Bỏ đánh dấu loại" : "Loại ảnh này khỏi kết quả"}
+        className={`absolute top-1 right-1 p-1 rounded transition
+          ${
+            isIgnored
+              ? "bg-[color:var(--bad-dim)] text-[color:var(--bad)]"
+              : "bg-[color:var(--bg)]/75 text-[color:var(--muted)] opacity-0 group-hover:opacity-100 hover:text-[color:var(--bad)]"
+          }`}
       >
-        <BiHide className="w-5 h-5" />
-      </div>
-      <div
+        <BiHide className="w-4 h-4" />
+      </button>
+
+      <button
+        type="button"
         onClick={toggleFullScreen}
-        className="cursor-pointer rounded-md p-1 absolute bottom-0 right-0 bg-slate-300 text-lg text-slate-900 font-semibold"
+        title="Xem to, kèm clip 4 giây quanh frame"
+        className="absolute bottom-1 right-1 p-1.5 rounded bg-[color:var(--bg)]/75 text-[color:var(--muted)]
+                   opacity-0 group-hover:opacity-100 hover:text-[color:var(--accent)] transition"
       >
-        <BsArrowsFullscreen />
-      </div>
+        <BsArrowsFullscreen className="w-3.5 h-3.5" />
+      </button>
     </div>
   );
 }

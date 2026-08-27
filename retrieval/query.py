@@ -192,6 +192,60 @@ def _save_tcache():
         pass
 
 
+# --- Bo nho dem phan ra bang LLM ------------------------------------------
+# Cung ly do voi bo nho dem ban dich: LLM khong tat dinh. Do duoc, hai lan chay
+# cung mot cau hinh tren cung bo eval cho Final Score 0.40 va 0.66 -- toan bo
+# chenh lech den tu ban phan ra doi, khong tu he thong tim kiem. Khong dem thi
+# khong hieu chinh duoc tham so nao, va giua buoi thi cung mot truy van go lai
+# se ra ket qua khac.
+DECOMPOSE_CACHE = os.environ.get("DECOMPOSE_CACHE", "data/decompose_cache.json")
+
+_dcache = None
+_dcache_lock = threading.Lock()
+
+
+class _CachedResult:
+    """Gia dang ket qua LLM de duong di ben duoi khong phai biet co dem."""
+
+    ok = True
+    reason = "cache"
+    error = None
+    model = "cache"
+    latency_ms = 0
+
+    def __init__(self, text):
+        self.text = text
+
+
+def _dcache_get(q):
+    global _dcache
+    if _dcache is None:
+        try:
+            with open(DECOMPOSE_CACHE, encoding="utf-8") as f:
+                _dcache = json.load(f)
+        except Exception:
+            _dcache = {}
+    return _dcache.get((q or "").strip())
+
+
+def _dcache_put(q, text):
+    key = (q or "").strip()
+    if not key or not text:
+        return
+    with _dcache_lock:
+        if _dcache is None:
+            _dcache_get(key)
+        _dcache[key] = text
+        try:
+            os.makedirs(os.path.dirname(DECOMPOSE_CACHE) or ".", exist_ok=True)
+            tmp = f"{DECOMPOSE_CACHE}.tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(_dcache, f, ensure_ascii=False, indent=1)
+            os.replace(tmp, DECOMPOSE_CACHE)
+        except Exception:
+            pass
+
+
 def _translate(text, use_cache=True):
     """Bac 2: chi dich, khong phan ra. Tra None neu ket qua khong dang tin.
 
@@ -377,8 +431,12 @@ def decompose(query_vi, query_en=None, use_llm=True, kind=None):
 
     # --- bac 1: LLM ------------------------------------------------------
     if use_llm:
-        res = get_client().generate(_PROMPT.format(q=query_vi), tier=DECOMPOSE_TIER)
+        cached = _dcache_get(query_vi)
+        res = (_CachedResult(cached) if cached is not None else
+               get_client().generate(_PROMPT.format(q=query_vi), tier=DECOMPOSE_TIER))
         if res.ok:
+            if cached is None:
+                _dcache_put(query_vi, res.text)
             data = _parse_json(res.text)
             if data:
                 clauses = [str(c).strip() for c in (data.get("clauses_en") or [])

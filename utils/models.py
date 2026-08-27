@@ -51,9 +51,21 @@ class TextSearchRequest(BaseModel):
     video_topn: Optional[int] = None
     channels: Optional[List[str]] = None
     weights: Optional[Dict[str, float]] = None
-    # Phan ra truy van bang LLM (tier "pro"). Tat -> dung truy van tho.
-    # Da tu nhap query_en thi co nay bi bo qua.
-    decompose: bool = True
+    # Phan ra truy van bang LLM. MAC DINH TAT.
+    #
+    # DO tren Debug/7_questions.json bang cong thuc cham diem cua BTC, sau khi
+    # da co bo nho dem nen so tat dinh:
+    #     dich may (deep-translator)      Final 0.6000
+    #     LLM phan ra menh de             Final 0.4571
+    #     LLM viet mot cau ngan gon       Final 0.4286
+    #
+    # LLM dich "mua lan" dung ("lion dance") con dich may sai ("the unicorn"),
+    # nhung tong the VAN te hon: SigLIP duoc huan luyen tren alt-text web nen
+    # hop voi ban dich tho sat chu hon la cau da bien tap. Phan ra menh de con
+    # lam mat phep hoi giua cac chi tiet.
+    #
+    # Van giu lai duoi dang cong tac cho nguoi dung bat khi gap truy van kho.
+    decompose: bool = False
     # Dong hang chuoi su kien bang DP -- NGUOI DUNG NOI GI THI NGHE NAY:
     #   True  = ep BAT du bo phan loai cho la khong can
     #   False = ep TAT (de so sanh hai che do)
@@ -214,8 +226,20 @@ class AutofillRequest(BaseModel):
     candidates: List[Dict[str, Any]] = []
     ignore: List[Dict[str, Any]] = []
     target: int = 100
-    mmr_lambda: Optional[float] = None
-    max_per_video: Optional[int] = None
+    # Truy van. Co thi backend tu lay them ung vien SAU luoi dang hien -- bai nop
+    # khong nen bi gioi han boi so anh nguoi dung dang nhin thay. Do duoc: mo
+    # rong pool tu 500 len 3000 dua Final Score tu 0.6000 len 0.6286.
+    query_vi: str = ""
+    query_en: str = ""
+    kind: Optional[str] = None
+    pool_topk: Optional[int] = None
+    head: Optional[int] = None
+    tail_gap_sec: Optional[float] = None
+
+    @field_validator("query_vi", "query_en", mode="before")
+    @classmethod
+    def _aq(cls, v: Any) -> str:
+        return "" if v is None else str(v)
 
     @field_validator("target", mode="before")
     @classmethod
