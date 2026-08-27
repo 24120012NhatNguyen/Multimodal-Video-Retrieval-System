@@ -8,10 +8,12 @@ import { AiOutlineCheck } from "react-icons/ai";
 // `value` là thứ backend nhận; `name` chỉ để hiển thị. Trước đây chỗ gọi so sánh
 // thẳng với chuỗi hiển thị ("No Filter") để suy ra số — đổi nhãn một chữ là bộ
 // lọc hỏng âm thầm.
+// Chỉ có tác dụng khi đã bật "Trong kết quả cũ": giữ lại những frame nằm SAU
+// (hoặc TRƯỚC) mốc thời gian của kết quả lượt trước, trong cùng video.
 export const FILTER_OPTIONS = [
-  { value: 0, name: "Không lọc" },
-  { value: 1, name: "Lọc về sau" },
-  { value: 2, name: "Lọc về trước" },
+  { value: 0, name: "Cả video" },
+  { value: 1, name: "Chỉ cảnh sau" },
+  { value: 2, name: "Chỉ cảnh trước" },
 ];
 const people = FILTER_OPTIONS;
 

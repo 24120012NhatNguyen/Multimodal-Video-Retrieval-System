@@ -3,6 +3,7 @@ import { AiOutlineSelect } from "react-icons/ai";
 import { BsArrowsFullscreen, BsDatabaseAdd } from "react-icons/bs";
 import { BiFileFind, BiSolidVideos, BiHide } from "react-icons/bi";
 import Image from "next/image";
+import { imageUrl } from "../helper/web_url.js";
 
 function ImageListvideoPanel({
   imagepath,
@@ -26,7 +27,10 @@ function ImageListvideoPanel({
     >
       <div className="group inline-flex relative h-[120px] w-[213px]">
         <Image
-          src={imagepath}
+          // imageUrl BAT BUOC: backend tra duong dan tuong doi "/keyframe/..."
+          // va anh nam o SERVER MEDIA (may local), khong phai o Next.js. Thieu
+          // buoc nay thi bang object va dai frame chi hien o trong.
+          src={imageUrl(imagepath)}
           fill={true}
           className="  duration-300 relative rounded-md"
           

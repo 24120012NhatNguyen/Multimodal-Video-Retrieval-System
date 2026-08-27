@@ -22,6 +22,7 @@ import Info from "../components/Info.jsx";
 import ExplainBadge from "../components/ExplainBadge.jsx";
 import QueryKind from "../components/QueryKind.jsx";
 import ChannelModes from "../components/ChannelModes.jsx";
+import TrakePanel from "../components/TrakePanel.jsx";
 import Button from "../components/ui/Button.jsx";
 import Segmented from "../components/ui/Segmented.jsx";
 import Field from "../components/ui/Field.jsx";
@@ -94,6 +95,9 @@ function Index() {
   // Bảng object là công cụ PHỤ nhưng đang chiếm 728px cố định — gần 40% màn
   // hình 1920. Thu gọn được, và mặc định gọn.
   const [panelOpen, setPanelOpen] = useState(false);
+  // TRAKE là dạng bài riêng: chuỗi khoảnh khắc theo thứ tự, nộp một dãy frame.
+  // Nó không dùng chung lưới kết quả với KIS nên có khung riêng.
+  const [trakeOpen, setTrakeOpen] = useState(false);
   // Dap an dang co cua cau hoi dang chon -- can de auto-fill giu lai cac dong
   // "manual" thay vi ghi de mat.
   const [submittedInfo, setSubmittedInfo] = useState(null);
@@ -419,7 +423,10 @@ function Index() {
 
   const handleKNN = (imgId) => {
     setLoading(true);
-    fetch(`${web_url}/imgsearch?imgid=${imgId}&k=${k}`, fetchGetObj)
+    // encodeURIComponent BAT BUOC: khoa keyframe la "L30_V046#4865" va dau '#'
+    // trong URL la ky tu mo FRAGMENT -- trinh duyet cat tu do tro di, backend chi
+    // nhan duoc "L30_V046" roi tra 404 "khong tim thay keyframe".
+    fetch(`${web_url}/imgsearch?imgid=${encodeURIComponent(imgId)}&k=${k}`, fetchGetObj)
       .then((res) => res.json())
       .then((data) => {
         if (!Array.isArray(data)) {
@@ -438,7 +445,7 @@ function Index() {
 
   const toggleFullScreen = (image) => {
     if (image !== null) {
-      fetch(`${web_url}/relatedimg?imgid=${image.id}`, fetchGetObj)
+      fetch(`${web_url}/relatedimg?imgid=${encodeURIComponent(image.id)}`, fetchGetObj)
         .then((res) => res.json())
         .then((data) => {
           setFullScreenImg(image);
@@ -526,6 +533,48 @@ function Index() {
     if (feedback.lst_pos_idxs.includes(id)) imgFeedback = "like";
     else if (feedback.lst_neg_idxs.includes(id)) imgFeedback = "dislike";
     return imgFeedback;
+  };
+
+  // Hỏi VLM trên một frame. Chạy ở SERVER LOCAL: /qa cần ảnh thật, mà ảnh chỉ
+  // trích được từ data/videos ở máy này.
+  const askVlm = async (entryKey) => {
+    const at = String(entryKey).lastIndexOf("#");
+    if (at < 0) {
+      alert("Khoá keyframe không hợp lệ: " + entryKey);
+      return "";
+    }
+    if (!query.trim()) {
+      alert("Gõ câu hỏi vào ô tìm kiếm trước đã.");
+      return "";
+    }
+    try {
+      const res = await fetch(`${socket_url}/qa`, {
+        method: "post",
+        headers: apiHeaders(),
+        body: JSON.stringify({
+          video_id: String(entryKey).slice(0, at),
+          frame_idx: parseInt(String(entryKey).slice(at + 1), 10),
+          question: query,
+          window_sec: 3,
+          n_frames: 3,
+        }),
+      });
+      const d = await res.json();
+      if (d.error) {
+        alert("Hỏi VLM lỗi: " + d.error);
+        return "";
+      }
+      if (d.degraded) {
+        alert(
+          "VLM không dùng được — đây chỉ là text OCR/ASR đọc được quanh frame:\n" +
+            (d.answer || "(trống)")
+        );
+      }
+      return d.answer || "";
+    } catch (e) {
+      alert("Không gọi được /qa ở " + socket_url + ": " + e);
+      return "";
+    }
   };
 
   const addView = (id, answer = "") => {
@@ -972,7 +1021,7 @@ function Index() {
                 checked={filter}
                 disabled={queryHistory.length === 0 && filter === false}
                 onChange={(e) => setFilter(e.target.checked)}
-                hint="Tìm bên trong kết quả của lượt trước"
+                hint="Chỉ tìm trong những video đã ra ở lượt trước. Bật cái này thì ô Hướng bên cạnh mới có tác dụng."
               >
                 Trong kết quả cũ
               </Check>
@@ -994,34 +1043,11 @@ function Index() {
               </Check>
             </Group>
 
-            <Group label="Bộ lọc">
+            {/* "Dải" và "Nhóm" đã bị gỡ: backend chưa bao giờ đọc hai tham số
+                đó, nên chúng là nút chết — người dùng chỉnh số rồi tưởng có tác
+                dụng. Thà không có còn hơn có mà im lặng không làm gì. */}
+            <Group label="Hướng">
               <Select selected={selectedFilter} setSelected={setSelectedFilter} />
-              <Field
-                label="Dải"
-                hint="Độ rộng dải frame quanh mỗi kết quả"
-                id="rangeFilter"
-                type="number"
-                inputClassName="inp--num inp--sm w-[52px]"
-                onChange={(e) => {
-                  const val = e.target.value === "" ? 3 : Number(e.target.value);
-                  SetRangeFilter(Number.isNaN(val) ? 3 : val);
-                }}
-                value={rangeFilter}
-              />
-              <Field
-                label="Nhóm"
-                hint="Gom kết quả theo nhóm video (0 = tắt)"
-                id="search space"
-                min={0}
-                max={5}
-                type="number"
-                inputClassName="inp--num inp--sm w-[52px]"
-                onChange={(e) => {
-                  const val = e.target.value === "" ? 0 : Number(e.target.value);
-                  setSearchSpace(Number.isNaN(val) ? 0 : val);
-                }}
-                value={searchSpace}
-              />
             </Group>
 
             <Button
@@ -1047,6 +1073,14 @@ function Index() {
                 title="Tìm theo lớp object và VỊ TRÍ trên khung hình, kèm ô lọc theo chữ trên hình / lời nói"
               >
                 {panelOpen ? "Ẩn bảng object" : "Bảng object"}
+              </Button>
+              <Button
+                size="sm"
+                active={trakeOpen}
+                onClick={() => setTrakeOpen((v) => !v)}
+                title="Dạng bài TRAKE: tìm một CHUỖI khoảnh khắc theo thứ tự trong cùng một video, rồi nộp cả dãy frame"
+              >
+                {trakeOpen ? "Ẩn TRAKE" : "TRAKE"}
               </Button>
             </div>
           </div>
@@ -1172,8 +1206,18 @@ function Index() {
         </div>
 
         {/* {images} */}
+        {trakeOpen && (
+          <div className="flex-auto overflow-auto border-t border-[color:var(--line)]">
+            <TrakePanel
+              questionName={questionName}
+              addView={addView}
+              onClose={() => setTrakeOpen(false)}
+            />
+          </div>
+        )}
+
         {/* ---------- thanh trạng thái kết quả ---------- */}
-        {!loading && searchMeta && (
+        {!trakeOpen && !loading && searchMeta && (
           <div className="flex flex-wrap items-center gap-2 px-4 py-2 text-[12px]
                           text-[color:var(--ink-2)] border-b border-[color:var(--line)]">
             <span className="mono">
@@ -1199,7 +1243,9 @@ function Index() {
 
         <div
           id="images"
-          className="results flex-auto flex-col overflow-auto flex h-full px-3 pb-2"
+          className={`results flex-auto flex-col overflow-auto flex h-full px-3 pb-2 ${
+            trakeOpen ? "hidden" : ""
+          }`}
         >
           {/* ---------- trạng thái rỗng ---------- */}
           {!loading && videos.length === 0 && (
@@ -1274,6 +1320,7 @@ function Index() {
                         let id = video_info.lst_idxs[index];
                         return (
                           <ImageListVideo
+                            askVlm={askVlm}
                             addView={addView}
                             imagepath={path}
                             questionName={questionName}
@@ -1311,6 +1358,7 @@ function Index() {
                           let id = video.video_info_prev.lst_idxs[index];
                           return (
                             <ImageListVideo
+                              askVlm={askVlm}
                               addView={addView}
                               imagepath={path}
                               questionName={questionName}
@@ -1360,6 +1408,7 @@ function Index() {
                         let id = video_info.lst_idxs[index];
                         return (
                           <ImageListVideo
+                            askVlm={askVlm}
                             addView={addView}
                             imagepath={path}
                             questionName={questionName}

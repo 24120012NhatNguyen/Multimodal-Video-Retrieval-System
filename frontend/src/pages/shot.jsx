@@ -32,14 +32,25 @@ function Video() {
       setQuestionName(router.query.questionName);
     }
     if (router.query.id !== undefined)
-      fetch(`${web_url}/getvideoshot?imgid=${router.query.id}`, {
+      // encodeURIComponent: khoa keyframe co dau '#', khong ma hoa thi trinh
+      // duyet cat tu do tro di va backend chi nhan duoc ten video.
+      fetch(`${web_url}/getvideoshot?imgid=${encodeURIComponent(router.query.id)}`, {
         method: "get",
         headers: apiHeaders(),
       })
         .then((data) => data.json())
         .then((data) => {
-          console.log(router);
           setVideos(data);
+          // Lam am cache anh o luong nen: trang nay hoi hang tram keyframe cung
+          // luc. Khong lam am thi moi anh la mot lan ffmpeg seek rieng -> hang
+          // tram tien trinh song song, may dung hinh.
+          const vname = data.video_name || data.video_id;
+          if (vname) {
+            fetch(`${media_url}/warm/${encodeURIComponent(vname)}`, {
+              method: "get",
+              headers: apiHeaders(),
+            }).catch(() => {});
+          }
           // video_name do backend trả về đã là tên chuẩn (vd. "L21_V001");
           // fallback cho backend cũ.
           videoId =
@@ -223,7 +234,7 @@ function Video() {
                     overflowY: "clip",
                     justifyContent: "space-around",
                   }}
-                  classname="relative flex-none overflow-x-auto overflow-y-clip flex flex-nowrap h-max flex-auto justify-around"
+                  className="relative flex-none overflow-x-auto overflow-y-clip flex flex-nowrap h-max flex-auto justify-around gap-1"
                 >
                   {shot.lst_keyframe_paths.map((path, index) => (
                     <ImageListShot

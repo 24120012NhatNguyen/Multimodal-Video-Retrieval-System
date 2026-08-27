@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { AiOutlineSelect, AiFillLike, AiFillDislike } from "react-icons/ai";
-import { BsArrowsFullscreen, BsDatabaseAdd } from "react-icons/bs";
+import { BsArrowsFullscreen, BsDatabaseAdd, BsQuestionCircle } from "react-icons/bs";
 import { BiFileFind, BiSolidVideos, BiHide } from "react-icons/bi";
 import Image from "next/image";
 import { imageUrl } from "../helper/web_url.js";
@@ -11,7 +11,7 @@ import { imageUrl } from "../helper/web_url.js";
 // biết nút nào làm gì. Và mỗi thẻ viền trắng dày, bốn góc gắn bốn ô xám đục
 // che mất ảnh. Bản này: nhãn chữ trên mọi nút, viền tối, huy hiệu góc trong mờ.
 
-function ActionButton({ id, onClick, icon, label, href, tone }) {
+function ActionButton({ id, onClick, icon, label, href, title }) {
   const cls =
     "flex flex-col items-center justify-center gap-0.5 w-[52px] h-[46px] rounded-md " +
     "bg-[color:var(--panel-2)]/95 border border-[color:var(--line-2)] " +
@@ -25,13 +25,13 @@ function ActionButton({ id, onClick, icon, label, href, tone }) {
   );
   if (href) {
     return (
-      <a id={id} target="_blank" rel="noreferrer" href={href} className={cls} title={label}>
+      <a id={id} target="_blank" rel="noreferrer" href={href} className={cls} title={title || label}>
         {inner}
       </a>
     );
   }
   return (
-    <button type="button" id={id} onClick={onClick} className={cls} title={label}>
+    <button type="button" id={id} onClick={onClick} className={cls} title={title || label}>
       {inner}
     </button>
   );
@@ -40,6 +40,7 @@ function ActionButton({ id, onClick, icon, label, href, tone }) {
 function ImageList({
   imagepath,
   id,
+  askVlm,
   handleKNN,
   handleSelect,
   toggleFullScreen,
@@ -53,6 +54,20 @@ function ImageList({
   questionName,
 }) {
   const [answerText, setAnswerText] = useState("");
+  const [asking, setAsking] = useState(false);
+
+  // Hỏi VLM ngay trên frame này. Endpoint /qa đã có từ lâu nhưng giao diện chưa
+  // từng gọi tới — người dùng phải tự nhìn ảnh rồi gõ tay câu trả lời.
+  const ask = async () => {
+    if (!askVlm) return;
+    setAsking(true);
+    try {
+      const a = await askVlm(id);
+      if (a) setAnswerText(a);
+    } finally {
+      setAsking(false);
+    }
+  };
   const showOverlay =
     feedbackMode && imgFeedback !== undefined ? "opacity-100" : "opacity-0 group-hover:opacity-100";
 
@@ -114,32 +129,45 @@ function ImageList({
                 onClick={() => handleKNN(id)}
                 icon={<BiFileFind fontSize="1.2rem" />}
                 label="Ảnh giống"
+                title="Tìm các keyframe giống ảnh này trên toàn corpus (KNN)"
               />
               <ActionButton
                 id={"shot" + id}
                 href={`shot?id=${id}&questionName=${questionName}`}
                 icon={<BiSolidVideos fontSize="1.2rem" />}
                 label="Cả video"
-              />
-              <ActionButton
-                id={"select" + id}
-                onClick={handleSelect}
-                icon={<AiOutlineSelect fontSize="1.2rem" />}
-                label="Chọn"
+                title="Mở toàn bộ keyframe của video này ở tab mới"
               />
               <ActionButton
                 id={"sendView" + id}
                 onClick={() => addView(id, answerText)}
                 icon={<BsDatabaseAdd fontSize="1.2rem" />}
-                label="Thêm đáp án"
+                label="Thêm vào bài"
+                title="Thêm frame này vào danh sách 100 dòng của câu hỏi đang chọn"
               />
+              <ActionButton
+                id={"select" + id}
+                onClick={handleSelect}
+                icon={<AiOutlineSelect fontSize="1.2rem" />}
+                label="Nộp ngay"
+                title="Nộp THẲNG frame này lên server BTC ngay lập tức — khác với Thêm vào bài"
+              />
+              {askVlm && (
+                <ActionButton
+                  id={"ask" + id}
+                  onClick={ask}
+                  icon={<BsQuestionCircle fontSize="1.2rem" />}
+                  label={asking ? "..." : "Hỏi VLM"}
+                  title="Hỏi Claude Haiku 4.5 trên frame này + OCR + lời nói, rồi điền vào ô đáp án"
+                />
+              )}
               <input
                 type="text"
-                placeholder="Câu trả lời (Q&A)"
+                placeholder="Đáp án cho câu Hỏi–Đáp"
                 value={answerText}
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) => setAnswerText(e.target.value)}
-                title="Chỉ cần cho dạng bài Hỏi–Đáp"
+                title="Chỉ dạng bài Hỏi–Đáp mới cần ô này"
                 className="inp inp--sm w-[168px] h-7 text-[11px] px-2"
               />
             </>
