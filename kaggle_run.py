@@ -15,10 +15,8 @@ trong hai cach duoi, script tu doc duoc ca hai:
 
   2. Dat bang bien moi truong trong mot cell TRUOC khi chay:
          import os
-         os.environ["NGROK_TOKEN"]   = "..."
-         os.environ["GEMINI_API_KEY"] = "..."
-         os.environ["GEMINI_MODEL_PRO"]   = "..."
-         os.environ["GEMINI_MODEL_FLASH"] = "..."
+         os.environ["NGROK_TOKEN"]      = "..."
+         os.environ["ANTHROPIC_API_KEY"] = "..."
      Roi:  %run kaggle_run.py
      Luu y: cell nay se duoc luu lai trong notebook. Notebook de private,
      hoac dung cach 1.
@@ -57,21 +55,36 @@ ARTIFACT_ROOT = os.environ.get(
     "ARTIFACT_ROOT", "/kaggle/input/artifacts-dataset/data/artifacts")
 
 NGROK_TOKEN = secret("NGROK_TOKEN")
-GEMINI_API_KEY = secret("GEMINI_API_KEY")
 
+# --- Nha cung cap LLM ---------------------------------------------------
+# Mac dinh ANTHROPIC, khop voi retrieval/config.py. File nay truoc day chi doc
+# GEMINI_API_KEY trong khi config.py da chuyen sang doc ANTHROPIC_API_KEY --
+# ket qua la tren Kaggle, LLM TAT HOAN TOAN ma khong bao gi ca: van tim kiem
+# duoc nhung mat phan ra truy van, ma nguoi dung chi thay ket qua te di.
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "anthropic")
+
+ANTHROPIC_API_KEY = secret("ANTHROPIC_API_KEY")
+GEMINI_API_KEY = secret("GEMINI_API_KEY")      # chi dung khi LLM_PROVIDER=gemini
 
 # --- Model ID -----------------------------------------------------------
-# DE TRONG CO Y. Mot ID doan bua se tra 404 giua luc thi -- dung cai loi ma muc
-# A1 dang muon chan. Lay ID that tu chinh tai khoan cua ban:
-#
+# ANTHROPIC: ID on dinh va tu no da la ban ghim (claude-haiku-4-5), khong co
+# hau to ngay, nen KHONG phai dien tay. De trong -> retrieval/config.py lay mac
+# dinh. Muon doi thi dat CLAUDE_MODEL_FLASH / CLAUDE_MODEL_PRO.
+CLAUDE_MODEL_FLASH = os.environ.get("CLAUDE_MODEL_FLASH", "")
+CLAUDE_MODEL_PRO = os.environ.get("CLAUDE_MODEL_PRO", "")
+
+# GEMINI: DE TRONG CO Y. ID cua Google co chu ky khai tu ngan va alias khong so
+# phien ban bi hot-swap giua buoi thi -- mot ID doan bua se tra 404 dung luc
+# dang thi. Lay ID that tu chinh tai khoan:
 #     GEMINI_API_KEY=... python -m retrieval.llm_client --list
-#
-# roi dien ID co [pinned] (co hau to so phien ban, vd ...-001). Alias khong co
-# so phien ban bi hot-swap va co the doi hanh vi giua buoi thi.
-# Chua dien -> he thong chay che do khong-LLM: van tim kiem duoc bang BM25 +
-# dich may, chi mat phan ra truy van bang LLM.
+# roi dien ID co [pinned].
 GEMINI_MODEL_PRO = os.environ.get("GEMINI_MODEL_PRO", "")
 GEMINI_MODEL_FLASH = os.environ.get("GEMINI_MODEL_FLASH", "")
+
+# Index object cho /panel. Mac dinh tim o $ARTIFACT_ROOT/object_index.npz --
+# tuc la no di kem luon khi ban upload thu muc artifacts len Kaggle. Chi phai
+# dat bien nay khi de file o cho khac. Xem retrieval/objects.py.
+OBJECT_INDEX = os.environ.get("OBJECT_INDEX", "")
 # =========================================================================
 
 print("Installing requirements...")
@@ -82,12 +95,16 @@ subprocess.run([sys.executable, "-m", "pip", "install", "-q", "pyngrok",
 
 # 2. Thiết lập biến môi trường
 os.environ["ARTIFACT_ROOT"] = ARTIFACT_ROOT
-if GEMINI_API_KEY:
-    os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
-if GEMINI_MODEL_PRO:
-    os.environ["GEMINI_MODEL_PRO"] = GEMINI_MODEL_PRO
-if GEMINI_MODEL_FLASH:
-    os.environ["GEMINI_MODEL_FLASH"] = GEMINI_MODEL_FLASH
+os.environ["LLM_PROVIDER"] = LLM_PROVIDER
+for _k, _v in (("ANTHROPIC_API_KEY", ANTHROPIC_API_KEY),
+               ("GEMINI_API_KEY", GEMINI_API_KEY),
+               ("CLAUDE_MODEL_FLASH", CLAUDE_MODEL_FLASH),
+               ("CLAUDE_MODEL_PRO", CLAUDE_MODEL_PRO),
+               ("GEMINI_MODEL_FLASH", GEMINI_MODEL_FLASH),
+               ("GEMINI_MODEL_PRO", GEMINI_MODEL_PRO),
+               ("OBJECT_INDEX", OBJECT_INDEX)):
+    if _v:
+        os.environ[_k] = _v
 
 print(f"Checking ARTIFACT_ROOT: {ARTIFACT_ROOT}")
 
@@ -108,15 +125,46 @@ if n_feat == 0:
     print("  Khong co file features nao -> tim kiem se tra ve rong. Dung lai.")
     sys.exit(1)
 
-print(f"  GEMINI_API_KEY  = {mask(GEMINI_API_KEY)}")
-print(f"  NGROK_TOKEN     = {mask(NGROK_TOKEN)}")
-print(f"  GEMINI_MODEL_PRO   = {GEMINI_MODEL_PRO or '(chua dat)'}")
-print(f"  GEMINI_MODEL_FLASH = {GEMINI_MODEL_FLASH or '(chua dat)'}")
+print(f"  NGROK_TOKEN       = {mask(NGROK_TOKEN)}")
+print(f"  LLM_PROVIDER      = {LLM_PROVIDER}")
+if LLM_PROVIDER == "anthropic":
+    print(f"  ANTHROPIC_API_KEY = {mask(ANTHROPIC_API_KEY)}")
+else:
+    print(f"  GEMINI_API_KEY    = {mask(GEMINI_API_KEY)}")
+    print(f"  GEMINI_MODEL_PRO   = {GEMINI_MODEL_PRO or '(chua dat)'}")
+    print(f"  GEMINI_MODEL_FLASH = {GEMINI_MODEL_FLASH or '(chua dat)'}")
 
-if not GEMINI_MODEL_FLASH and not GEMINI_MODEL_PRO:
-    print("\n  [chu y] Chua dat GEMINI_MODEL_*. He thong chay che do khong-LLM:")
-    print("          van tim duoc bang BM25 + dich may, mat phan ra truy van.")
-    print("          Lay ID that: python -m retrieval.llm_client --list")
+# --- Index object cho /panel -------------------------------------------
+# Thieu thi /panel tra ve rong. Day la che do xuong cap CO Y (tim kiem van
+# chay), nhung phai noi to o day chu khong de nguoi dung tu phat hien.
+from retrieval.objects import ObjectIndex as _OIX
+
+_oix = _OIX()
+if _oix.ok:
+    print(f"  Index object      = {len(_oix.entities)} lop, "
+          f"{len(_oix.det_ent)} detection ({_oix.path})")
+else:
+    print("\n  [chu y] KHONG CO INDEX OBJECT -> /panel se tra ve RONG.")
+    print(f"          {_oix.error}")
+    print("          Dat object_index.npz vao thu muc artifacts truoc khi upload")
+    print("          len Kaggle, hoac dat OBJECT_INDEX tro toi file do.")
+    print("          Dung index: python -m retrieval.objects build")
+
+# --- Kiem tra LLM that su tra loi duoc ---------------------------------
+# Co API key khong dong nghia goi duoc: sai key, het quota, sai ten model deu
+# ra 4xx. Thu mot lan o day, con hon phat hien giua buoi thi.
+print("\nKiem tra LLM...")
+from retrieval.llm_client import get_client as _get_llm
+
+_llm = _get_llm()
+_probe = _llm.generate("Tra loi dung mot tu: OK", tier="flash")
+if _probe.ok:
+    print(f"  LLM san sang: {_probe.model} ({_probe.latency_ms}ms) "
+          f"-> {(_probe.text or '').strip()[:30]!r}")
+else:
+    print(f"  LLM KHONG DUNG DUOC: {_probe.reason} -- {_probe.error}")
+    print("  He thong chay CHE DO KHONG-LLM: van tim duoc bang SigLIP + BM25 +")
+    print("  dich may, chi mat phan ra truy van va Q/A. Day khong phai loi chet.")
 
 
 # --- Nap model TRUOC khi mo tunnel --------------------------------------
