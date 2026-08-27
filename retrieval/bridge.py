@@ -20,9 +20,9 @@ import glob
 import json
 import os
 
-from retrieval.config import ARTIFACT_ROOT, FusionConfig
+from retrieval.config import ARTIFACT_ROOT, OBJECT_DIR, FusionConfig
 
-OBJECT_ROOT = os.path.join(ARTIFACT_ROOT, "objects-aic25-b1", "objects")
+OBJECT_ROOT = OBJECT_DIR
 # Layout chuan cua BTC neu bo map-keyframes duoc bo sung. Thieu file nay thi
 # object khong co moc thoi gian nao ca -> kenh object tat, xem `object_status`.
 MAP_KEYFRAME_DIRS = (

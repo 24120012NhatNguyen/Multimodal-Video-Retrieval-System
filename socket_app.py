@@ -40,7 +40,6 @@ from retrieval.answers import (
     reorder as reorder_answers,
     trake_csv,
 )
-from utils.auth import install_auth
 from utils.logger_config import get_logger
 from utils.models import QaRequest, QuestionNameRequest, UsernameRequest, UserRequest
 
@@ -65,7 +64,6 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
-install_auth(app)
 
 sio = socketio.AsyncServer(
     async_mode="asgi",
@@ -436,48 +434,165 @@ def keyframe_image(video_id: str, name: str):
                         headers={"Cache-Control": "public, max-age=86400"})
 
 
+##################### Clip ngan (local) ########################
+@app.get("/clip/{video_id}/{name}")
+def clip(video_id: str, name: str, window: float = 2.0):
+    """Clip [pts - window, pts + window] quanh mot frame. name = '012450.mp4'.
+
+    Mot anh tinh khong phan biet duoc "dang buoc vao" voi "dang buoc ra". 4 giay
+    quanh frame la thao tac nhanh nhat de loai ket qua sai.
+    """
+    svc = get_media()
+    if svc is None:
+        return {"error": _media["error"], "status_code": 503}
+    try:
+        frame_idx = int(os.path.splitext(name)[0])
+    except ValueError:
+        return {"error": f"ten clip khong hop le: {name!r}", "status_code": 400}
+
+    if "clips" not in _media:
+        from retrieval.clips import ClipCache
+        _media["clips"] = ClipCache(_media["store"])
+
+    path, info = _media["clips"].get(video_id, frame_idx, window)
+    if not path:
+        return {"error": f"khong cat duoc clip: {info}", "status_code": 404}
+    return FileResponse(
+        path, media_type="video/mp4",
+        headers={"Cache-Control": "public, max-age=86400",
+                 # UI can biet frame nam o giay thu may trong clip de dat vach.
+                 "X-Frame-Offset-Sec": str(info["frame_offset_sec"]),
+                 "X-Clip-Start-Sec": str(info["start"]),
+                 "Access-Control-Expose-Headers":
+                     "X-Frame-Offset-Sec, X-Clip-Start-Sec"})
+
+
+@app.get("/clipinfo/{video_id}/{frame_idx}")
+def clipinfo(video_id: str, frame_idx: int, window: float = 2.0):
+    """Moc thoi gian cua clip ma khong cat -- de UI ve giao dien truoc."""
+    svc = get_media()
+    if svc is None:
+        return {"error": _media["error"], "status_code": 503}
+    if "clips" not in _media:
+        from retrieval.clips import ClipCache
+        _media["clips"] = ClipCache(_media["store"])
+    c = _media["clips"]
+    pts = c.pts_of(video_id, frame_idx)
+    w = max(0.5, min(30.0, float(window)))
+    start = max(0.0, pts - w)
+    return {"video_id": video_id, "frame_idx": frame_idx,
+            "pts_time": round(pts, 3), "start": round(start, 3),
+            "end": round(start + (pts + w) - start, 3), "window_sec": w,
+            "url": f"/clip/{video_id}/{int(frame_idx):06d}.mp4?window={w:g}"}
+
+
 ##################### Q/A (local, can anh that) ################
 @app.post("/qa")
 def qa_endpoint(request: QaRequest):
-    """Q/A bang VLM tren frame net nhat trong [start_pts, end_pts].
+    """Q/A bang VLM tren NHIEU frame trong [start_pts, end_pts].
 
     Chay local vi buoc nay CAN anh that -- ma anh chi trich duoc o day.
+
+    Ban truoc chi gui MOT anh va khong gui ASR. Cau hoi Q/A cua BTC phan lon la
+    hanh dong ("nguoi do dang lam gi") hoac con so doc len trong ban tin -- hai
+    thu do khong nam trong mot anh tinh.
     """
     svc = get_media()
     if svc is None:
         return {"error": _media["error"], "status_code": 503}
 
-    from retrieval.qa import extract_best_frame, solve_qa
+    from retrieval.qa import pick_frames, solve_qa
 
     store = _media["store"]
-    best = extract_best_frame(request.video_id, request.start_pts,
-                              request.end_pts, store)
-    if best is None:
-        return {"error": "Không tìm thấy frame nào trong khoảng thời gian",
+
+    # --- xac dinh cua so thoi gian --------------------------------------
+    start_pts, end_pts = request.start_pts, request.end_pts
+    if start_pts is None or end_pts is None:
+        if request.frame_idx is None:
+            return {"error": "Can (start_pts, end_pts) hoac frame_idx",
+                    "status_code": 400}
+        df = store.frames_of(request.video_id)
+        hit = df[df["frame_idx"] == int(request.frame_idx)] if not df.empty else df
+        if hit.empty:
+            fps = store.fps.get(request.video_id) or 25.0
+            pts = float(request.frame_idx) / fps
+        else:
+            pts = float(hit.iloc[0]["pts_time"])
+        w = max(0.5, float(request.window_sec))
+        start_pts, end_pts = max(0.0, pts - w), pts + w
+
+    if request.video_id not in store.video_slice:
+        return {"error": f"Video {request.video_id} khong co trong index",
                 "status_code": 404}
 
-    frame_idx = int(best["frame_idx"])
-    pts_time = float(best["pts_time"])
-    image_path = svc.get(request.video_id, frame_idx)
-    if not image_path:
-        return {"error": "Không thể trích xuất ảnh", "status_code": 404}
+    # Chon frame theo do khop CAU HOI + do net. Encoder co thi dung, khong co
+    # thi lui ve do net -- khong lam hong Q/A.
+    encoder = _media.get("encoder")
+    if encoder is None and _media.get("encoder_failed") is None:
+        try:
+            from retrieval.encoder import SigLipTextEncoder
+            encoder = _media["encoder"] = SigLipTextEncoder()
+        except Exception as e:
+            _media["encoder_failed"] = f"{type(e).__name__}: {e}"
+
+    rows = pick_frames(request.video_id, start_pts, end_pts, store,
+                       n=request.n_frames, question=request.question,
+                       encoder=encoder)
+    if not rows:
+        return {"error": "Khong tim thay frame nao trong khoang thoi gian",
+                "status_code": 404}
 
     from retrieval.bridge import ContextBridge
 
     if "bridge" not in _media:
         _media["bridge"] = ContextBridge(store)
-    ocr = _media["bridge"].ocr_at(request.video_id, pts_time, frame_idx=frame_idx)
-    ocr_texts = [i["text"] for i in ocr.get("items", [])]
+    bridge = _media["bridge"]
 
-    qa = solve_qa(request.video_id, request.question, image_path, ocr_texts)
+    frames, image_paths, ocr_texts = [], [], []
+    for r in rows:
+        fi, pts = int(r["frame_idx"]), float(r["pts_time"])
+        p = svc.get(request.video_id, fi)
+        if not p:
+            continue
+        image_paths.append(p)
+        o = bridge.ocr_at(request.video_id, pts, frame_idx=fi)
+        texts = [i["text"] for i in o.get("items", []) if i.get("text")]
+        ocr_texts.extend(texts)
+        frames.append({"frame_idx": fi, "pts_time": round(pts, 3),
+                       "n_ocr": len(texts)})
+
+    if not image_paths:
+        return {"error": "Khong the trich xuat anh nao", "status_code": 404}
+
+    # ASR cua CA cua so, khong phai cua tung frame -- loi noi trai dai qua nhieu frame.
+    mid = (start_pts + end_pts) / 2.0
+    asr = bridge.asr_at(request.video_id, mid, pad=(end_pts - start_pts) / 2.0)
+    asr_texts = [seg["text"] for seg in asr.get("segments", []) if seg.get("text")]
+
+    # bo trung OCR nhung giu thu tu
+    seen, ocr_uniq = set(), []
+    for t in ocr_texts:
+        if t not in seen:
+            seen.add(t)
+            ocr_uniq.append(t)
+
+    qa = solve_qa(request.video_id, request.question, image_paths, ocr_uniq,
+                  asr_texts=asr_texts, window=(start_pts, end_pts))
     return {
         "video_id": request.video_id,
-        "frame_idx": frame_idx,
-        "pts_time": pts_time,
+        # khoa cu: frame dai dien
+        "frame_idx": frames[0]["frame_idx"],
+        "pts_time": frames[0]["pts_time"],
         "answer": qa["answer"],
         "degraded": qa["degraded"],
         "vlm": {k: v for k, v in qa.items() if k != "answer"},
-        "ocr_texts_used": ocr_texts,
+        "frames": frames,
+        "cua_so": {"start": round(start_pts, 3), "end": round(end_pts, 3)},
+        "ocr_texts_used": ocr_uniq,
+        "asr_texts_used": asr_texts,
+        "clip_url": (f"/clip/{request.video_id}/"
+                     f"{frames[0]['frame_idx']:06d}.mp4"
+                     f"?window={max(0.5, (end_pts - start_pts) / 2.0):g}"),
     }
 
 
@@ -491,6 +606,8 @@ async def health():
         "n_question": len(AnswerDict),
         "n_answer": sum(len(v) for v in AnswerDict.values()),
         "media": ("san sang" if svc else f"TAT - {_media['error']}"),
+        "clip": (_media["clips"].stats() if "clips" in _media
+                 else {"ghi_chu": "chua cat clip nao"}),
         "back_up": os.path.abspath(back_up_folder),
     }
 

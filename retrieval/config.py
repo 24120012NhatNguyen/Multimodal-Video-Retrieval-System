@@ -8,10 +8,20 @@ CONFIG_PATH = os.environ.get("FUSION_CONFIG", "config/fusion.json")
 
 # Thu muc artifacts. Moi pack la mot thu muc con chua features/ keyframes/ asr/ ocr/.
 ARTIFACT_ROOT = os.environ.get("ARTIFACT_ROOT", "data/artifacts")
-# Metadata cua BTC (khong nam trong cau truc pack).
-META_DIR = os.environ.get(
-    "META_DIR", "data/artifacts/media-info-aic25-b1/media-info"
-)
+# Metadata + object cua BTC: nam NGANG HANG voi cac pack, ben trong
+# ARTIFACT_ROOT. PHAI suy tu ARTIFACT_ROOT chu khong hardcode duong dan tuong
+# doi -- tren Kaggle ARTIFACT_ROOT tro sang /kaggle/input/... nen duong dan
+# "data/artifacts/..." khong ton tai, va hai kenh meta/meta_fold CHET AM THAM
+# (log chi con MetaIndex[asr] va MetaIndex[ocr]).
+def _under_root(env_key, *parts):
+    v = os.environ.get(env_key)
+    if v:
+        return v
+    return os.path.join(ARTIFACT_ROOT, *parts)
+
+
+META_DIR = _under_root("META_DIR", "media-info-aic25-b1", "media-info")
+OBJECT_DIR = _under_root("OBJECT_DIR", "objects-aic25-b1", "objects")
 VIDEO_DIR = os.environ.get("VIDEO_DIR", "data/videos")
 KEYFRAME_CACHE = os.environ.get("KEYFRAME_CACHE", "data/keyframe_cache")
 
@@ -33,16 +43,21 @@ SIGLIP_MODEL = os.environ.get("SIGLIP_MODEL", "google/siglip-so400m-patch14-384"
 # (truy van tho, khong phan ra), xem retrieval/llm_client.py.
 #
 # Dat gia tri that lay tu chinh tai khoan cua ban:
-#     export GEMINI_API_KEY=...
-#     python -m retrieval.llm_client --list      # in ra ID kem ban co that
-#     export GEMINI_MODEL_FLASH=gemini-3.7-flash
-#     export GEMINI_MODEL_PRO=gemini-2.5-pro
+#     export ANTHROPIC_API_KEY=...
+#     python -m retrieval.llm_client --list
 
-LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "gemini")
-LLM_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-# flash: tac vu nhanh (Q/A tren mot frame). pro: phan ra truy van kho.
-LLM_MODEL_FLASH = os.environ.get("GEMINI_MODEL_FLASH") or None
-LLM_MODEL_PRO = os.environ.get("GEMINI_MODEL_PRO") or None
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "anthropic")
+
+if LLM_PROVIDER == "anthropic":
+    LLM_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+    # ID cua Anthropic la DAY DU nhu the nay, KHONG them hau to ngay.
+    # Haiku 4.5: 200K context, re va nhanh -- du cho phan ra truy van va Q/A.
+    LLM_MODEL_FLASH = os.environ.get("CLAUDE_MODEL_FLASH", "claude-haiku-4-5")
+    LLM_MODEL_PRO = os.environ.get("CLAUDE_MODEL_PRO", "claude-haiku-4-5")
+else:
+    LLM_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    LLM_MODEL_FLASH = os.environ.get("GEMINI_MODEL_FLASH") or None
+    LLM_MODEL_PRO = os.environ.get("GEMINI_MODEL_PRO") or None
 
 LLM_TIMEOUT_SEC = float(os.environ.get("LLM_TIMEOUT_SEC", "20"))
 LLM_MAX_RETRY = int(os.environ.get("LLM_MAX_RETRY", "2"))
@@ -63,6 +78,26 @@ class FusionConfig:
         "ocr": 1.0,
     })
     rrf_k: int = 60
+    # Trong so san cho kenh ma NGUOI DUNG bat cong tac sang "on". Khong co no
+    # thi nut bat la nut gia: trong so theo loai truy van dang la 0 nen kenh
+    # duoc bat van khong bo phieu duoc.
+    channel_on_weight: float = 1.0
+    # --- Xep lai theo bang chung frame -----------------------------------
+    # RRF xep video theo "may kenh bo phieu"; no khong biet ben trong video co
+    # khoanh khac nao that su giong truy van khong. Xep lai theo diem thi giac
+    # cao nhat trong video thi biet. Do tren bo eval: xem retrieval/engine.py.
+    # Cach chia han muc frame cho luoi ket qua:
+    #   "global"       sort toan cuc theo diem roi cat -- video khong co frame
+    #                  diem cao BIEN MAT khoi luoi (loc am tham theo frame)
+    #   "round_robin"  moi video top duoc 1 frame moi vong -- thu hang video
+    #                  luon nhin thay duoc, nhung video dung chi co 1 frame/vong
+    #   "hybrid"       bao dam 1 frame cho top (han muc / 3) video, con lai theo diem
+    # Con so o day PHAI do bang eval/run_eval.py --no-llm (phan ra bang LLM
+    # khong tat dinh, chay hai lan ra hai ket qua khac nhau -- khong so sanh duoc).
+    frame_alloc: str = "global"
+    rerank_by_frame: bool = False
+    # Trong so cua thu hang RRF khi xep lai. 0 = xep hoan toan theo frame.
+    rerank_rrf_weight: float = 0.0
     # So video moi kenh tra ve truoc khi gop.
     channel_topn: int = 100
     # So video giu lai sau khi gop, truoc khi xuong tang frame.
@@ -78,7 +113,21 @@ class FusionConfig:
     # Khoang thoi gian toi da giua hai su kien lien tiep. 30s vua du cho mot
     # chuoi canh trong ban tin; nam trong bang hang so can DO chu khong doan.
     dp_delta_sec: float = 30.0
-    dp_gamma: float = 0.5
+    # gamma tinh bang DON VI DO LECH CHUAN, khong phai don vi cosine: diem su
+    # kien da duoc chuan hoa z-score theo phan bo cua chinh truy van tren corpus
+    # (retrieval.trake.event_stats). Ban truoc de 0.5 tren thang cosine (bien do
+    # +/-0.13) nen nhanh "bo qua" cua DP khong bao gio duoc chon -- DP luon ep
+    # khop du moi su kien ke ca su kien khong he co trong video.
+    # Nguong z de coi mot su kien la CO MAT trong video. Diem khop tro thanh
+    # (z - tau) nen su kien chi hoi giong se AM va bi bo qua -- do la co che duy
+    # nhat lam nhanh "bo qua" cua DP song. Do tren corpus: p99 cua z ~2,8.
+    dp_tau: float = 2.0
+    # Khoan phat cau truc them cho moi su kien bi bo trong. tau da lam phan
+    # nguong, nen mac dinh 0.
+    dp_gamma: float = 0.0
+    # Khoang cach TOI THIEU giua hai su kien lien tiep. 0 = chi doi hoi frame
+    # sau muon hon frame truoc (co the la hai keyframe lien ke, ~2-3s).
+    dp_min_gap_sec: float = 0.0
     # So video dua vao DP (DP chay ~6ms/video nen day khong phai nut co chai).
     dp_video_topn: int = 30
 
@@ -90,12 +139,17 @@ class FusionConfig:
     neighbour_window_sec: float = 3.0  # mo rong lan can quanh frame thu cong
 
     # --- Viec 4: dung sai cau noi ----------------------------------------
-    # Nguoi/xe/do vat hiem khi bien mat trong 3 giay.
-    object_tolerance_sec: float = 3.0
+    # Object cua BTC neo vao keyframe cua HO, khong trung keyframe cua ta; bac
+    # cau qua pts_time lay tu map-keyframes. 2.5s: nguoi/xe/do vat hiem khi bien
+    # mat trong khoang do, va khoang cach giua hai keyframe BTC lien tiep do
+    # duoc phan lon < 5s.
+    object_tolerance_sec: float = 2.5
     # Lower-third chi hien ~4 giay, do hoa doi lien tuc.
     ocr_tolerance_sec: float = 1.5
     # ASR neo theo thoi gian -> khong phai cau noi, chi noi rong bien doan.
     asr_pad_sec: float = 2.0
+    # Nua do rong cua clip ngan quanh mot keyframe: [pts - w, pts + w].
+    clip_window_sec: float = 2.0
 
     def save(self, path=CONFIG_PATH):
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)

@@ -1,0 +1,32 @@
+{
+  "weights": {
+    "siglip": 1.0,
+    "meta": 1.0,
+    "meta_fold": 1.0,
+    "asr": 1.0,
+    "ocr": 1.0
+  },
+  "rrf_k": 60,
+  "channel_on_weight": 1.0,
+  "frame_alloc": "global",
+  "rerank_by_frame": false,
+  "rerank_rrf_weight": 0.0,
+  "channel_topn": 100,
+  "video_topn": 30,
+  "frame_topk": 200,
+  "dp_enabled": true,
+  "dp_delta_sec": 30.0,
+  "dp_tau": 2.0,
+  "dp_gamma": 0.0,
+  "dp_min_gap_sec": 0.0,
+  "dp_video_topn": 30,
+  "autofill_target": 100,
+  "mmr_lambda": 0.7,
+  "max_per_video": 5,
+  "min_gap_sec": 2.0,
+  "neighbour_window_sec": 3.0,
+  "object_tolerance_sec": 2.5,
+  "ocr_tolerance_sec": 1.5,
+  "asr_pad_sec": 2.0,
+  "clip_window_sec": 2.0
+}

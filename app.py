@@ -5,11 +5,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from retrieval import service
-from utils.auth import install_auth
 from utils.logger_config import get_logger
 from utils.models import (
     AutofillRequest,
     KeyframeContextRequest,
+    PanelSearchRequest,
     TextSearchRequest,
     TrakeRequest,
     QaRequest,
@@ -26,12 +26,29 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-install_auth(app)
 
 # Eagerly initialize fusion engine on startup to fail-fast
 # Kaggle stateless backend only relies on this.
 try:
     _fusion_state = service.get()
+    # Nap SigLIP NGAY luc khoi dong, khong doi truy van dau tien.
+    # Nap luoi nghia la vai truy van dau chay khong co kenh thi giac va nguoi
+    # dung khong he biet -- ho chi thay ket qua te. Dat SIGLIP_PRELOAD=0 de bo
+    # qua (chay che do chi-BM25 co y thuc).
+    if os.environ.get("SIGLIP_PRELOAD", "1") != "0":
+        info = service.preload(strict=True)
+        logger.info("SigLIP san sang: %s chieu tren %s", info["dim"], info["device"])
+    # Index object khong co thi /panel tra ve rong -- do la che do xuong cap co
+    # y (tim kiem van chay), nhung phai NOI TO luc khoi dong. Tren Kaggle,
+    # data/artifacts la mount chi doc nen index phai duoc nap kem dataset hoac
+    # dung lai; xem retrieval/objects.py.
+    _oix = _fusion_state["objects"]
+    if _oix.ok:
+        logger.info("Index object: %s lop, %s detection (%s)",
+                    len(_oix.entities), len(_oix.det_ent), _oix.path)
+    else:
+        logger.warning("KHONG CO INDEX OBJECT -- /panel se tra ve rong. %s",
+                       _oix.error)
     logger.info("Fusion engine initialized successfully.")
 except Exception as e:
     logger.error(f"Failed to initialize fusion engine: {e}")
@@ -68,6 +85,8 @@ def fusion_search(request: TextSearchRequest):
         weights=request.weights,
         channels=request.channels,
         ignore_gidx=ignore_gidx,
+        kind=dq.kind,          # quyet dinh trong so giua thi giac va van ban
+        modes=request.channel_modes,   # cong tac ASR/OCR do nguoi dung gat
     )
 
     # Tra thang ket qua cua engine. `videos` da dung dang FE doc duoc
@@ -141,13 +160,94 @@ def fusion_search(request: TextSearchRequest):
     result["query_vi"] = dq.query_vi
     return result
 
-# --- Stub Endpoints to prevent frontend crashes ---
-@app.post("/getrec")
-def getrec():
-    return []
+# ---------------------------------------------------------------------------
+# Bon duong tim kiem phu cua UI. Truoc day deu 404, UI bao "Fetch failed".
+# ---------------------------------------------------------------------------
+@app.get("/data")
+def data():
+    """Du lieu khoi tao cho UI: tu vung lop object, danh sach video, trang thai kenh.
+
+    UI truoc day go tag object tu mot danh sach COCO chep cung trong
+    frontend/src/helper/icons.js ("person", "dog", ...). Du lieu object cua BTC
+    lai la OpenImages viet hoa ("Person", "Dog") va co 545 lop -- go tag theo
+    danh sach cu thi phan lon khong khop gi, ma UI khong bao gi ca. Lay tu vung
+    THAT tu day.
+    """
+    svc = get_fusion()
+    if svc is None:
+        return {"error": _fusion_state["error"], "status_code": 503}
+    ix = svc["objects"]
+    return {
+        "ok": True,
+        "objects": [{"ten": e, "n": n} for e, n in (ix.vocabulary() if ix.ok else [])],
+        "object_index": ix.status(),
+        "videos": svc["store"].video_ids,
+        "n_video": len(svc["store"].video_ids),
+        "n_keyframe": int(len(svc["store"].meta)),
+        "kenh_van_ban": list(svc["channels"].index),
+        "che_do_kenh": {"gia_tri": ["auto", "on", "off"],
+                        "kenh": ["siglip", "meta", "asr", "ocr"]},
+    }
+
+
+@app.post("/panel")
+def panel(request: PanelSearchRequest):
+    """Tim theo LOP object + VI TRI tren khung hinh + chu tren hinh + loi noi."""
+    svc = get_fusion()
+    if svc is None:
+        return {"videos": [], "warnings": [_fusion_state["error"]], "status_code": 503}
+
+    videos, warnings = svc["panels"].panel(
+        tags=request.tags or [],
+        drag_objects=request.dragObject or [],
+        amount=request.amount,
+        ocr=request.ocr,
+        asr=request.asr,
+        ids=request.id,
+        useid=bool(request.useid),
+        ignore_idxs=(request.ignore_idxs if request.ignore else None),
+        k=request.k,
+    )
+    return {"videos": videos, "warnings": warnings,
+            "n_video": len(videos),
+            "n_frame": sum(len(v["video_info"]["lst_idxs"]) for v in videos)}
+
+
+@app.get("/framerange")
+def framerange(video_id: str, start: int, end: int, text_query: str = "",
+               limit: int = 200):
+    """Keyframe cua mot video trong dai [start, end] tinh theo frame_idx."""
+    svc = get_fusion()
+    if svc is None:
+        return {"error": _fusion_state["error"], "status_code": 503}
+    return svc["panels"].frame_range(video_id, start, end, text_query, limit)
+
+
+@app.get("/imgsearch")
+def imgsearch(imgid: str, k: int = 200, per_video: int = 0):
+    """KNN tu vector cua mot keyframe. imgid la khoa 'video_id#frame_idx'."""
+    svc = get_fusion()
+    if svc is None:
+        return []
+    videos, err = svc["panels"].img_search(imgid, k=k, per_video=per_video)
+    if err:
+        return {"error": err, "status_code": 404}
+    # UI cu doc thang mang -> giu nguyen dang mang.
+    return videos
+
 
 @app.get("/relatedimg")
-def relatedimg():
+def relatedimg(imgid: str = "", span: int = 6):
+    """Boi canh cua anh dang xem toan man hinh: frame truoc/sau + link video goc."""
+    svc = get_fusion()
+    if svc is None or not imgid:
+        return {}
+    return svc["panels"].related(imgid, span=span)
+
+
+@app.post("/getrec")
+def getrec():
+    """Goi y tag: da chuyen sang GET /data (tu vung lop that cua du lieu object)."""
     return []
 
 @app.post("/feedback")
@@ -226,58 +326,108 @@ def diagnostics():
 
 @app.post("/trake")
 def trake_endpoint(request: TrakeRequest):
-    """Dong hang chuoi su kien bang DP tren truc thoi gian cua mot video."""
+    """Dong hang chuoi su kien bang DP tren truc thoi gian.
+
+    Hai duong vao:
+      video_id co   -> dong hang tren dung video do (duong cu, giu nguyen).
+      video_id rong -> TU TIM video ung vien bang tang hop nhat roi dong hang
+                       tren tung video, tra ve xep hang. Day moi la dang bai
+                       TRAKE that: truy van -> video + day frame. Bat nguoi
+                       dung phai biet truoc video thi endpoint gan nhu vo dung.
+    """
     svc = get_fusion()
     if svc is None:
         return {"error": _fusion_state["error"], "status_code": 503}
 
-    from retrieval.trake import dp_alignment, events_to_scores
-
-    if not request.events:
-        return {"error": "Cần ít nhất một sự kiện", "status_code": 400}
-    if request.video_id not in svc["store"].video_slice:
-        return {"error": f"Video {request.video_id} không có trong index",
-                "status_code": 404}
-
-    encoder = svc["engine"].encoder
+    cfg = svc["config"]
+    engine = svc["engine"]
+    encoder = engine.encoder
     try:
         svc["store"].assert_encoder_matches(encoder)
     except Exception as e:
         # Kenh thi giac la bat buoc voi TRAKE -- khong co encoder thi khong the
         # cham diem su kien, va doan bua se cho ra chuoi frame vo nghia.
-        return {"error": f"TRAKE cần SigLIP encoder: {e}", "status_code": 503}
+        return {"error": f"TRAKE can SigLIP encoder: {e}", "status_code": 503}
 
-    pts_times, frame_idxs, scores = events_to_scores(
-        svc["store"], request.video_id, encoder, request.events)
-    if not pts_times:
-        return {"error": f"Video {request.video_id} không có keyframe nào",
-                "status_code": 404}
+    # --- lay danh sach su kien ------------------------------------------
+    events = [e.strip() for e in (request.events or []) if e and e.strip()]
+    dq = None
+    if not events:
+        from retrieval.query import decompose
 
-    path, score = dp_alignment(pts_times, scores,
-                               delta=request.delta, gamma=request.gamma)
-    if not path:
-        return {"message": "Không tìm thấy chuỗi sự kiện nào phù hợp.",
-                "status_code": 404}
+        raw = request.query_vi or request.query_en
+        if not raw.strip():
+            return {"error": "Can `events` hoac `query_vi`", "status_code": 400}
+        dq = decompose(query_vi=request.query_vi, query_en=request.query_en,
+                       use_llm=request.decompose, kind="generic_chain")
+        events = [c for c in dq.clauses_en if c.strip()]
+        if not events:
+            return {"error": ("khong tach duoc menh de nao tu truy van -- nhap "
+                              "thang danh sach `events` bang tieng Anh"),
+                    "status_code": 400}
 
-    matched = []
-    for k, p in enumerate(path):
-        if p == -1:
-            matched.append({"event": k, "frame_idx": None, "pts_time": None,
-                            "skipped": True})
-        else:
-            matched.append({"event": k, "frame_idx": int(frame_idxs[p]),
-                            "pts_time": round(float(pts_times[p]), 3),
-                            "score": round(float(scores[p, k]), 4),
-                            "skipped": False})
+    delta = cfg.dp_delta_sec if request.delta is None else request.delta
+    gamma = cfg.dp_gamma if request.gamma is None else request.gamma
+    min_gap = (getattr(cfg, "dp_min_gap_sec", 0.0)
+               if request.min_gap is None else request.min_gap)
+    if min_gap > delta:
+        return {"error": f"min_gap ({min_gap}) khong duoc lon hon delta ({delta})",
+                "status_code": 400}
 
+    # --- chon tap video ---------------------------------------------------
+    if request.video_id:
+        if request.video_id not in svc["store"].video_slice:
+            return {"error": f"Video {request.video_id} khong co trong index",
+                    "status_code": 404}
+        video_ids = [request.video_id]
+        chon_boi = "nguoi_dung"
+    else:
+        query_en = (dq.query_en if dq else request.query_en) or "\n".join(events)
+        query_vi = (dq.query_vi if dq else request.query_vi)
+        fused, _, _ = engine.rank_videos(query_en, query_vi, kind="generic_chain")
+        video_ids = [v for v, _ in fused if v in svc["store"].video_slice
+                     ][:max(1, request.video_topn)]
+        chon_boi = "tang_hop_nhat"
+        if not video_ids:
+            return {"message": "Khong tim thay video ung vien nao.",
+                    "events": events, "status_code": 404}
+
+    aligned = engine.align_videos(events, video_ids, delta=delta, gamma=gamma,
+                                  min_gap=min_gap, normalize=request.normalize)
+    if not aligned:
+        return {"message": "Khong dong hang duoc chuoi su kien tren video nao.",
+                "events": events, "status_code": 404}
+
+    for a in aligned:
+        a["dp_score"] = round(a["dp_score"], 4)
+        # Day frame de nop bai TRAKE, theo dung thu tu su kien.
+        a["matched_frames"] = [m["frame_idx"] for m in a["matched"]]
+        a["idxs"] = [None if m["frame_idx"] is None
+                     else f"{a['video_id']}#{m['frame_idx']}" for m in a["matched"]]
+        a["keyframe_paths"] = [None if m["frame_idx"] is None
+                               else f"/keyframe/{a['video_id']}/{int(m['frame_idx']):06d}.jpg"
+                               for m in a["matched"]]
+
+    best = aligned[0]
     return {
-        "video_id": request.video_id,
-        "score": float(score),
-        "events": request.events,
-        "matched": matched,
-        # giu khoa cu cho client da viet theo dinh dang truoc
-        "matched_frames": [m["frame_idx"] for m in matched],
-        "n_skipped": sum(1 for m in matched if m["skipped"]),
+        # khoa cu, cho client da viet theo mot video
+        "video_id": best["video_id"],
+        "score": best["dp_score"],
+        "matched": best["matched"],
+        "matched_frames": best["matched_frames"],
+        "n_skipped": best["n_skipped"],
+        # xep hang day du
+        "events": events,
+        "videos": aligned,
+        "n_video": len(aligned),
+        "chon_video_boi": chon_boi,
+        "tham_so": {"delta": delta, "gamma": gamma, "min_gap": min_gap,
+                    "chuan_hoa_z": bool(request.normalize)},
+        "ghi_chu": ("gamma tinh bang do lech chuan cua chinh su kien do tren "
+                    "corpus, khong phai don vi cosine"
+                    if request.normalize else
+                    "chuan_hoa_z=false: diem la cosine tho, gamma gan nhu chac "
+                    "chan qua lon nen DP se khong bao gio bo qua su kien nao"),
     }
 
 

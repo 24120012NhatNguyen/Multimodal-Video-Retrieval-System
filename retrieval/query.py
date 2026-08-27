@@ -19,6 +19,8 @@ he thong nay phai tranh. Bo kenh siglip va chay bang BM25 la trung thuc hon.
 
 import json
 import re
+import threading
+import os
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -153,8 +155,57 @@ def _looks_like_translation(src, out):
     return True
 
 
-def _translate(text):
-    """Bac 2: chi dich, khong phan ra. Tra None neu ket qua khong dang tin."""
+# --- Bo nho dem ban dich ---------------------------------------------------
+# Google Translate KHONG tra ve cung mot cau cho cung mot dau vao. Do duoc:
+# chay eval/run_eval.py --no-llm hai lan lien tiep tren cung mot cau hinh cho ra
+# MRR 0.771 va 0.514 -- toan bo chenh lech den tu ban dich doi, khong tu he
+# thong tim kiem. Khong co bo nho dem thi moi phep so sanh trong bo eval deu vo
+# nghia, va giua buoi thi cung mot truy van go lai se ra ket qua khac.
+#
+# Dem tren dia, khoa la nguyen van cau tieng Viet.
+TRANSLATION_CACHE = os.environ.get(
+    "TRANSLATION_CACHE", "data/translation_cache.json")
+
+_tcache = None
+_tcache_lock = threading.Lock()
+
+
+def _load_tcache():
+    global _tcache
+    if _tcache is None:
+        try:
+            with open(TRANSLATION_CACHE, encoding="utf-8") as f:
+                _tcache = json.load(f)
+        except Exception:
+            _tcache = {}
+    return _tcache
+
+
+def _save_tcache():
+    try:
+        os.makedirs(os.path.dirname(TRANSLATION_CACHE) or ".", exist_ok=True)
+        tmp = f"{TRANSLATION_CACHE}.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(_tcache, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, TRANSLATION_CACHE)
+    except Exception:
+        pass
+
+
+def _translate(text, use_cache=True):
+    """Bac 2: chi dich, khong phan ra. Tra None neu ket qua khong dang tin.
+
+    Ket qua duoc dem tren dia: cung mot cau tieng Viet luon cho cung mot ban
+    dich, ke ca sau khi khoi dong lai. Xem ghi chu o TRANSLATION_CACHE.
+    """
+    key = (text or "").strip()
+    if not key:
+        return None
+    if use_cache:
+        c = _load_tcache()
+        if key in c:
+            return c[key] or None
+
     try:
         from deep_translator import GoogleTranslator
 
@@ -162,7 +213,13 @@ def _translate(text):
     except Exception:
         return None
     out = (out or "").strip()
-    return out if _looks_like_translation(text, out) else None
+    out = out if _looks_like_translation(text, out) else None
+
+    if use_cache and out:
+        with _tcache_lock:
+            _load_tcache()[key] = out
+            _save_tcache()
+    return out
 
 
 # Tu viet hoa nhung KHONG phai danh tu rieng: hay dung o dau menh de.
@@ -259,12 +316,24 @@ def classify(text, clauses=None):
     if anchors:
         return "anchored", anchors, f"do duoc anchor: {', '.join(anchors[:3])}"
 
+    # KHONG co anchor -> truy van THUAN THI GIAC, bat ke co may su kien.
+    #
+    # Ban truoc tra ve "anchored" cho truy van mot menh de khong anchor
+    # ("nguoi dan ong va con cho") -- va "anchored" keo theo trong so NANG VAN
+    # BAN, tuc la nguoc hoan toan. Loi do den tu viec gop hai quyet dinh doc lap:
+    #
+    #   co anchor khong   -> can nang VAN BAN hay nang THI GIAC
+    #   co may su kien    -> co can dong hang thoi gian (DP) hay khong
+    #
+    # So su kien chi quyet dinh cai thu hai; `needs_dp` da lo phan do.
     n = max(count_events(text), len(clauses or []))
     if n >= 2:
         return ("generic_chain", [],
                 f"khong co danh tu rieng nao; {n} su kien noi tiep nhau nen chi "
                 f"thu tu thoi gian moi phan biet duoc")
-    return "anchored", [], "chi mot su kien, khong co gi de dong hang"
+    return ("generic_chain", [],
+            "khong co danh tu rieng nao -- truy van thuan thi giac, "
+            "kenh van ban khong co gi de bam vao")
 
 
 def decompose(query_vi, query_en=None, use_llm=True, kind=None):

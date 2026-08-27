@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import SearchTag from "./SearchTag";
 import React from "react";
 import DragObject from "./DragObject.jsx";
@@ -11,6 +11,7 @@ import LoadingIcon from "./LoadingIcon";
 import VideoWrapper from "./VideoWrapper.jsx";
 import PageButton from "./PageButton";
 import FrameRangeViewer from "./FrameRangeViewer.jsx";
+import { fetchVocab } from "../helper/vocab.js";
 
 const VIDEO_PER_PAGE = 7;
 
@@ -42,6 +43,16 @@ function panel({
   const [activeSearch, setActiveSearch] = useState(icons);
   const [maxObj, setMaxObj] = useState("");
   const [ocr, setOcr] = useState("");
+  // Từ vựng lớp object LẤY TỪ DỮ LIỆU THẬT (GET /data) — xem helper/vocab.js.
+  const [vocab, setVocab] = useState({ names: [], objects: [], indexOk: true });
+  useEffect(() => {
+    fetchVocab().then(setVocab);
+  }, []);
+  const vocabCounts = React.useMemo(() => {
+    const m = {};
+    (vocab.objects || []).forEach((o) => (m[o.ten] = o.n));
+    return m;
+  }, [vocab]);
   //trie
   let trie = require("trie-prefix-tree");
   let myTrie = trie(icons);
@@ -283,7 +294,7 @@ function panel({
         {/* {tags} */}
         <div className="w-[240px] flex flex-col">
           <div className="h-[115px] w-[240px]">
-            <SearchTag addTag={addTag} />
+            <SearchTag addTag={addTag} vocab={vocab.names} counts={vocabCounts} />
           </div>
           <div className="h-[170px] w-[240px]">
             <GetTagRec
@@ -295,6 +306,12 @@ function panel({
           </div>
         </div>
       </div>
+      {vocab && vocab.indexOk === false && (
+        <div className="text-xs text-amber-400 px-1 py-0.5">
+          Index object chưa sẵn sàng ({vocab.indexError || "không rõ"}) — tìm
+          theo lớp/vị trí sẽ trả về rỗng. Chạy: python -m retrieval.objects build
+        </div>
+      )}
       <div className="ocr flex gap-1 w-[728px] mb-1">
         <div className="relative flex-auto">
           <input

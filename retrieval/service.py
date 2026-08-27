@@ -8,6 +8,8 @@ from retrieval.config import ARTIFACT_ROOT, META_DIR, FusionConfig
 from retrieval.encoder import SigLipTextEncoder
 from retrieval.engine import FusionEngine
 from retrieval.frames import KeyframeImages
+from retrieval.objects import ObjectIndex
+from retrieval.panels import PanelSearch
 from retrieval.store import ArtifactStore
 from retrieval.textindex import TextChannels
 
@@ -20,6 +22,7 @@ def get():
         store = ArtifactStore()
         channels = TextChannels()
         encoder = SigLipTextEncoder()
+        objects = ObjectIndex()
         _state.update(
             config=cfg,
             store=store,
@@ -28,8 +31,35 @@ def get():
             engine=FusionEngine(store, channels, encoder, cfg),
             bridge=ContextBridge(store, cfg),
             images=KeyframeImages(store),
+            objects=objects,
+            panels=PanelSearch(store, objects, channels, cfg, encoder),
         )
     return _state
+
+
+def preload(strict=True):
+    """Nap DU model truoc khi mo cong.
+
+    Tren Kaggle, nap lazy nghia la vai truy van dau chay KHONG co kenh thi giac
+    -- nguoi dung nhan ket qua chi xep bang BM25 ma khong biet. Nap truoc, va
+    strict=True thi that bai luc khoi dong con hon im lang tra ket qua sai.
+    """
+    s = get()
+    enc = s["encoder"]
+    try:
+        v = enc.encode_texts(["warmup"])
+        s["store"].assert_encoder_matches(enc)
+        return {"ok": True, "dim": int(v.shape[1]), "device": enc.device,
+                "model": enc.model_name}
+    except Exception as e:
+        msg = f"{type(e).__name__}: {e}"
+        if strict:
+            raise RuntimeError(
+                f"Khong nap duoc SigLIP text encoder: {msg}\n"
+                f"Kenh thi giac se TAT va ket qua chi con xep bang BM25. "
+                f"Dat SIGLIP_PRELOAD=0 de bo qua kiem tra nay."
+            ) from e
+        return {"ok": False, "error": msg}
 
 
 def reload_config():
@@ -38,6 +68,7 @@ def reload_config():
     if "engine" in _state:
         _state["engine"].cfg = cfg
         _state["bridge"].cfg = cfg
+        _state["panels"].cfg = cfg
     return cfg
 
 
@@ -107,6 +138,7 @@ def diagnostics():
         "siglip": encoder.status(),
         "llm": _llm_status(),
         "object_bridge": bridge.object_status(),
+        "object_index": s["objects"].status(),
         "anh_keyframe": s["images"].stats(),
         "config": {
             "weights": s["config"].weights,

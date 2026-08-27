@@ -27,8 +27,6 @@ export const media_url = env("NEXT_PUBLIC_MEDIA_URL", socket_url);
 export const server = env("NEXT_PUBLIC_SUBMIT_URL", `${socket_url}/submit`);
 export const session = env("NEXT_PUBLIC_SESSION", "1");
 
-// Token xac thuc tunnel (muc C5). De trong = tat xac thuc.
-export const api_token = env("NEXT_PUBLIC_API_TOKEN", "");
 
 // ---------------------------------------------------------------------------
 /** Header dung cho moi request len backend. */
@@ -38,7 +36,6 @@ export function apiHeaders(extra) {
     "Content-Type": "application/json",
     ...(extra || {}),
   };
-  if (api_token) h["x-aic-token"] = api_token;
   return new Headers(h);
 }
 
@@ -55,8 +52,7 @@ export function imageUrl(path) {
   if (!path) return "";
   if (/^https?:\/\//i.test(path)) return path;
   if (path.startsWith("/keyframe/")) {
-    const sep = api_token ? `?token=${encodeURIComponent(api_token)}` : "";
-    return `${media_url}${path}${sep}`;
+    return `${media_url}${path}`;
   }
   return path;
 }

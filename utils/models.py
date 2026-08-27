@@ -31,8 +31,6 @@ def _int_or_default(value: Any, default: int) -> int:
 class TextSearchRequest(BaseModel):
     search_space: int = 0
     k: int = 500
-    nomic: bool = True
-    clipv2: bool = False
     textquery: str = ""
     range_filter: int = 3
     filter: bool = False
@@ -64,6 +62,9 @@ class TextSearchRequest(BaseModel):
     # Ep loai truy van, ghi de ca LLM lan bo do anchor.
     # "generic_chain" | "anchored" | None (tu quyet dinh)
     kind: Optional[str] = None
+    # Cong tac tung kenh do NGUOI DUNG gat: {"asr"|"ocr"|"meta"|"siglip":
+    # "auto"|"on"|"off"}. Thieu khoa nao thi khoa do la "auto".
+    channel_modes: Optional[Dict[str, str]] = None
 
     @field_validator("query_en", "query_vi", "textquery", mode="before")
     @classmethod
@@ -108,14 +109,31 @@ class PanelSearchRequest(BaseModel):
     k: int = 500
     search_space: int = 0
     useid: bool = True
-    id: Optional[List[int]] = None
+    # Khoa keyframe "video_id#frame_idx". Client cu gui chi so nguyen -> nhan ca
+    # hai roi ep ve chuoi, khong tu choi ca yeu cau.
+    id: Optional[List[str]] = None
     ignore: Optional[bool] = False
-    ignore_idxs: Optional[List[int]] = None
+    ignore_idxs: Optional[List[str]] = None
     ocr: str = ""
     asr: str = ""
     dragObject: Optional[List[Dict[str, Any]]] = []
     tags: Optional[List[str]] = []
     amount: Optional[str] = ""
+    questionName: str = ""
+
+    @field_validator("id", "ignore_idxs", mode="before")
+    @classmethod
+    def _keys(cls, v: Any) -> Optional[List[str]]:
+        if v is None:
+            return None
+        if not isinstance(v, list):
+            return None
+        return [x if isinstance(x, str) else str(x) for x in v]
+
+    @field_validator("questionName", mode="before")
+    @classmethod
+    def _qn(cls, v: Any) -> str:
+        return "" if v is None else str(v)
 
     @field_validator("k", mode="before")
     @classmethod
@@ -217,15 +235,83 @@ class KeyframeContextRequest(BaseModel):
         return _int_or_default(v, 0)
 
 class TrakeRequest(BaseModel):
-    """Yêu cầu dóng hàng sự kiện TRAKE."""
-    video_id: str
-    events: List[str]  # Danh sách các câu truy vấn text cho từng sự kiện
-    delta: float = 5.0
-    gamma: float = 0.5
+    """Yêu cầu dóng hàng sự kiện TRAKE.
+
+    `video_id` giờ là TUỲ CHỌN: bỏ trống thì TRAKE tự tìm video ứng viên bằng
+    tầng hợp nhất rồi dóng hàng trên từng video — đúng dạng bài TRAKE của BTC
+    (truy vấn → video + dãy frame), thay vì bắt người dùng biết trước video.
+
+    `delta`/`gamma`/`min_gap` bỏ trống thì lấy từ config/fusion.json.
+    """
+    video_id: str = ""
+    events: List[str] = []
+    query_vi: str = ""
+    query_en: str = ""
+    decompose: bool = True
+    video_topn: int = 20
+    delta: Optional[float] = None
+    gamma: Optional[float] = None
+    min_gap: Optional[float] = None
+    normalize: bool = True
+
+    @field_validator("video_id", "query_vi", "query_en", mode="before")
+    @classmethod
+    def _txt(cls, v: Any) -> str:
+        return "" if v is None else str(v)
+
+    @field_validator("delta", "gamma", "min_gap", mode="before")
+    @classmethod
+    def _opt_float(cls, v: Any) -> Optional[float]:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    @field_validator("video_topn", mode="before")
+    @classmethod
+    def _topn(cls, v: Any) -> int:
+        return _int_or_default(v, 20)
 
 class QaRequest(BaseModel):
-    """Yêu cầu giải quyết câu hỏi QA thông qua VLM."""
+    """Yêu cầu giải quyết câu hỏi QA thông qua VLM.
+
+    `frame_idx` là đường vào tiện hơn cho UI: người dùng bấm vào một keyframe,
+    không phải nhập hai mốc thời gian. Có frame_idx thì backend tự lấy cửa sổ
+    [pts − window, pts + window].
+    """
     video_id: str
     question: str
-    start_pts: float
-    end_pts: float
+    start_pts: Optional[float] = None
+    end_pts: Optional[float] = None
+    frame_idx: Optional[int] = None
+    window_sec: float = 2.0
+    # Số khung hình đưa cho VLM. >1 nghĩa là hỏi trên một dải ảnh liên tiếp —
+    # câu hỏi kiểu "người đó làm gì" không trả lời được bằng một ảnh tĩnh.
+    n_frames: int = 3
+
+    @field_validator("start_pts", "end_pts", mode="before")
+    @classmethod
+    def _opt_f(cls, v: Any) -> Optional[float]:
+        if v is None or (isinstance(v, str) and not str(v).strip()):
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    @field_validator("frame_idx", mode="before")
+    @classmethod
+    def _opt_i(cls, v: Any) -> Optional[int]:
+        if v is None or (isinstance(v, str) and not str(v).strip()):
+            return None
+        try:
+            return int(float(v))
+        except (TypeError, ValueError):
+            return None
+
+    @field_validator("n_frames", mode="before")
+    @classmethod
+    def _nf(cls, v: Any) -> int:
+        return max(1, min(8, _int_or_default(v, 3)))

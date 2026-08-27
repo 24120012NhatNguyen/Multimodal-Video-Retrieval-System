@@ -10,14 +10,13 @@ KHONG dan chuoi bi mat vao file nay -- no nam trong git. Dat bi mat bang mot
 trong hai cach duoi, script tu doc duoc ca hai:
 
   1. Kaggle Secrets (nen dung).  Add-ons -> Secrets, them cac khoa:
-         GEMINI_API_KEY   NGROK_TOKEN   AIC_API_TOKEN
+         ANTHROPIC_API_KEY   NGROK_TOKEN
      Bi mat khong bao gio xuat hien trong notebook lan output.
 
   2. Dat bang bien moi truong trong mot cell TRUOC khi chay:
          import os
          os.environ["NGROK_TOKEN"]   = "..."
          os.environ["GEMINI_API_KEY"] = "..."
-         os.environ["AIC_API_TOKEN"]  = "..."
          os.environ["GEMINI_MODEL_PRO"]   = "..."
          os.environ["GEMINI_MODEL_FLASH"] = "..."
      Roi:  %run kaggle_run.py
@@ -60,9 +59,6 @@ ARTIFACT_ROOT = os.environ.get(
 NGROK_TOKEN = secret("NGROK_TOKEN")
 GEMINI_API_KEY = secret("GEMINI_API_KEY")
 
-# Token xac thuc tunnel (muc C5). URL ngrok la public -- khong co token thi doi
-# khac doan ra URL la goi vao duoc. PHAI trung voi NEXT_PUBLIC_API_TOKEN o FE.
-AIC_API_TOKEN = secret("AIC_API_TOKEN", "doi-chuoi-nay-di")
 
 # --- Model ID -----------------------------------------------------------
 # DE TRONG CO Y. Mot ID doan bua se tra 404 giua luc thi -- dung cai loi ma muc
@@ -114,7 +110,6 @@ if n_feat == 0:
 
 print(f"  GEMINI_API_KEY  = {mask(GEMINI_API_KEY)}")
 print(f"  NGROK_TOKEN     = {mask(NGROK_TOKEN)}")
-print(f"  AIC_API_TOKEN   = {mask(AIC_API_TOKEN)}")
 print(f"  GEMINI_MODEL_PRO   = {GEMINI_MODEL_PRO or '(chua dat)'}")
 print(f"  GEMINI_MODEL_FLASH = {GEMINI_MODEL_FLASH or '(chua dat)'}")
 
@@ -123,8 +118,22 @@ if not GEMINI_MODEL_FLASH and not GEMINI_MODEL_PRO:
     print("          van tim duoc bang BM25 + dich may, mat phan ra truy van.")
     print("          Lay ID that: python -m retrieval.llm_client --list")
 
-if AIC_API_TOKEN == "doi-chuoi-nay-di":
-    print("\n  [chu y] AIC_API_TOKEN dang la gia tri mau. Doi di truoc khi thi.")
+
+# --- Nap model TRUOC khi mo tunnel --------------------------------------
+# Mo cong roi moi tai model nghia la nhung truy van dau tien chay khong co kenh
+# thi giac, va nguoi dung khong he biet -- ho chi thay ket qua te.
+print("\nNap SigLIP (lan dau tai ~3.5GB, cac lan sau doc tu cache)...")
+import time as _t
+_t0 = _t.time()
+try:
+    from retrieval import service as _svc
+    _info = _svc.preload(strict=True)
+    print(f"  SigLIP san sang: {_info['dim']} chieu tren {_info['device']} "
+          f"({_t.time()-_t0:.0f}s)")
+except Exception as _e:
+    print(f"  KHONG NAP DUOC SigLIP: {_e}")
+    print("  Dung lai -- mo backend luc nay se cho ket qua chi xep bang BM25.")
+    sys.exit(1)
 
 # --- Mo tunnel ----------------------------------------------------------
 from pyngrok import ngrok
@@ -138,9 +147,8 @@ print(f"BACKEND TIM KIEM (Kaggle): {public_url}")
 print("=" * 68)
 print("Dan vao frontend/.env.local roi khoi dong lai `npm run dev`:")
 print(f"  NEXT_PUBLIC_WEB_URL={public_url}")
-print(f"  NEXT_PUBLIC_API_TOKEN=<token ban da dat>   ({mask(AIC_API_TOKEN)})")
 print("\nO MAY LOCAL nho chay them server trang thai + anh:")
-print("  AIC_API_TOKEN=<cung token do> python socket_app.py")
+print("  python socket_app.py")
 print("=" * 68 + "\n")
 
 subprocess.run(["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"])

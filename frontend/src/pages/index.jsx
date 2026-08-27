@@ -12,7 +12,6 @@ import {
   server,
   session,
   apiHeaders,
-  api_token,
 } from "../helper/web_url.js";
 import VideoWrapper from "../components/VideoWrapper.jsx";
 import FullScreen from "../components/FullScreen";
@@ -22,6 +21,7 @@ import PageButton from "../components/PageButton.jsx";
 import Info from "../components/Info.jsx";
 import ExplainBadge from "../components/ExplainBadge.jsx";
 import QueryKind from "../components/QueryKind.jsx";
+import ChannelModes from "../components/ChannelModes.jsx";
 import dynamic from "next/dynamic";
 const SpeechToText = dynamic(() => import("../Library/SpeechToText"), {
   ssr: false,
@@ -76,6 +76,9 @@ function Index() {
   const [autofilling, setAutofilling] = useState(false);
   // "auto" = de he thong phan loai; "on"/"off" = nguoi dung ep.
   const [alignMode, setAlignMode] = useState("auto");
+  // Công tắc từng kênh do NGƯỜI DÙNG gạt: {asr|ocr|meta|siglip: "on"|"off"}.
+  // Thiếu khoá nào thì khoá đó là "auto" (hệ thống tự quyết).
+  const [channelModes, setChannelModes] = useState({});
   // Dap an dang co cua cau hoi dang chon -- can de auto-fill giu lai cac dong
   // "manual" thay vi ghi de mat.
   const [submittedInfo, setSubmittedInfo] = useState(null);
@@ -285,6 +288,7 @@ function Index() {
         decompose: true,
         // null = de he thong tu quyet dinh; true/false = nguoi dung ep.
         align: alignMode === "auto" ? null : alignMode === "on",
+        channel_modes: channelModes,
         textquery: query,
         // Kenh BM25 an tieng Viet; query_en de backend tu phan ra/dich sang
         // tieng Anh cho SigLIP (khong duoc gui tieng Viet vao SigLIP).
@@ -319,6 +323,8 @@ function Index() {
             channels: raw.channels || {},
             errors: raw.errors || {},
             query: raw.query || null,
+            weightsUsed: raw.weights_used || null,
+            weightsNote: raw.weights_note || null,
             nRanked: raw.n_videos_ranked || 0,
             aligned: !!raw.aligned,
             alignSkipped: raw.align_skipped || null,
@@ -636,6 +642,7 @@ function Index() {
               fusion: true,
               decompose: true,
               align: alignMode === "auto" ? null : alignMode === "on",
+              channel_modes: channelModes,
               textquery: query,
               query_vi: query,
               filtervideo: filtervideo,
@@ -1024,6 +1031,11 @@ function Index() {
               meta={searchMeta}
               alignMode={alignMode}
               setAlignMode={setAlignMode}
+            />
+            <ChannelModes
+              modes={channelModes}
+              setModes={setChannelModes}
+              meta={searchMeta}
             />
             <button
               type="button"

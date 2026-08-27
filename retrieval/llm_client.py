@@ -274,6 +274,152 @@ class GeminiClient(LLMClient):
         }
 
 
+class AnthropicClient(LLMClient):
+    """Claude qua SDK chinh thuc `anthropic`.
+
+    Haiku 4.5 la model doi truoc 4.6: KHONG nhan `output_config.effort` va dung
+    `thinking={"type":"enabled","budget_tokens":N}` chu khong phai adaptive.
+    O day khong bat thinking -- phan ra truy van va Q/A mot frame deu la tac vu
+    ngan, bat thinking chi them do tre.
+    """
+
+    name = "anthropic"
+
+    def __init__(self, api_key=None, model_flash=None, model_pro=None,
+                 timeout=None, max_retry=None):
+        self.api_key = api_key if api_key is not None else cfg.LLM_API_KEY
+        self.models = {
+            "flash": model_flash if model_flash is not None else cfg.LLM_MODEL_FLASH,
+            "pro": model_pro if model_pro is not None else cfg.LLM_MODEL_PRO,
+        }
+        self.timeout = cfg.LLM_TIMEOUT_SEC if timeout is None else timeout
+        self.max_retry = cfg.LLM_MAX_RETRY if max_retry is None else max_retry
+        self.breaker = _Breaker(cfg.LLM_BREAKER_THRESHOLD, cfg.LLM_COOLDOWN_SEC)
+        self._client = None
+        self.init_error = None
+        self.config_note = None
+        # ID cua Anthropic KHONG mang hau to ngay ("claude-haiku-4-5" la day du),
+        # nen phep kiem tra "co so phien ban" cua Google khong ap dung o day.
+        self.warnings = []
+
+    def _ensure(self):
+        if self._client is not None or self.init_error is not None:
+            return
+        if not self.api_key:
+            self.init_error = "chua dat ANTHROPIC_API_KEY"
+            return
+        try:
+            import anthropic
+
+            self._client = anthropic.Anthropic(
+                api_key=self.api_key, timeout=self.timeout,
+                max_retries=self.max_retry)
+        except ImportError as e:
+            self.init_error = f"thieu SDK anthropic: {e}"
+        except Exception as e:
+            self.init_error = f"{type(e).__name__}: {e}"
+
+    def model_for(self, tier):
+        return self.models.get(tier) or self.models.get("flash")
+
+    def available(self, tier="flash"):
+        self._ensure()
+        return bool(self._client and self.model_for(tier))
+
+    @staticmethod
+    def _image_block(path):
+        """Anh -> content block base64. None neu khong doc duoc."""
+        import base64
+        import mimetypes
+
+        try:
+            mt = mimetypes.guess_type(path)[0] or "image/jpeg"
+            with open(path, "rb") as f:
+                data = base64.standard_b64encode(f.read()).decode("utf-8")
+            return {"type": "image", "source": {
+                "type": "base64", "media_type": mt, "data": data}}
+        except Exception:
+            return None
+
+    def generate(self, prompt, images=None, tier="flash", timeout=None,
+                 max_tokens=2048):
+        t0 = time.time()
+        model = self.model_for(tier)
+        if not model:
+            return LLMResult(ok=False, reason="chua_dat_model_id", error=(
+                f"chua dat model ID cho tier {tier!r}. Dat CLAUDE_MODEL_FLASH / "
+                f"CLAUDE_MODEL_PRO; xem retrieval/config.py"))
+
+        self._ensure()
+        if self._client is None:
+            return LLMResult(ok=False, reason="chua_cau_hinh",
+                             error=self.init_error, model=model)
+        if self.breaker.is_open():
+            return LLMResult(ok=False, reason="circuit_breaker", model=model,
+                             error="API dang bi ngat tam thoi sau nhieu lan hong")
+
+        # Anh dat TRUOC van ban -- model doc thu tu, va cau hoi o cuoi giup no
+        # bam vao anh vua xem.
+        content = []
+        for im in (images or []):
+            blk = self._image_block(im) if isinstance(im, str) else im
+            if blk:
+                content.append(blk)
+        content.append({"type": "text", "text": prompt})
+
+        try:
+            client = self._client
+            if timeout:
+                client = client.with_options(timeout=timeout)
+            resp = client.messages.create(
+                model=model, max_tokens=max_tokens,
+                messages=[{"role": "user", "content": content}])
+            if resp.stop_reason == "refusal":
+                self.breaker.record(True)   # API on, chi la noi dung bi tu choi
+                return LLMResult(ok=False, reason="refusal", model=model,
+                                 error="model tu choi tra loi")
+            text = "".join(b.text for b in resp.content if b.type == "text").strip()
+            if not text:
+                self.breaker.record(False)
+                return LLMResult(ok=False, reason="rong", model=model,
+                                 error="model tra ve rong")
+            self.breaker.record(True)
+            return LLMResult(ok=True, text=text, model=model,
+                             latency_ms=int((time.time() - t0) * 1000))
+        except Exception as e:
+            last = f"{type(e).__name__}: {e}"
+            self.breaker.record(False)
+            low = last.lower()
+            reason = next((h for h in _DEGRADE_HINTS if h in low), "loi_api")
+            return LLMResult(ok=False, reason=reason, error=last, model=model,
+                             latency_ms=int((time.time() - t0) * 1000))
+
+    def list_models(self):
+        self._ensure()
+        if self._client is None:
+            return {"ok": False, "error": self.init_error}
+        try:
+            out = [{"id": m.id, "pinned": True} for m in self._client.models.list()]
+            return {"ok": True, "models": sorted(out, key=lambda x: x["id"])}
+        except Exception as e:
+            return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+    def status(self):
+        self._ensure()
+        return {
+            "provider": self.name,
+            "co_api_key": bool(self.api_key),
+            "sdk": "anthropic" if self._client else None,
+            "init_error": self.init_error,
+            "config_note": self.config_note,
+            "models": dict(self.models),
+            "canh_bao": self.warnings,
+            "kha_dung": {t: self.available(t) for t in ("flash", "pro")},
+            "circuit_breaker": self.breaker.status(),
+            "timeout_sec": self.timeout,
+        }
+
+
 # --------------------------------------------------------------------------
 _client = None
 _client_lock = threading.Lock()
@@ -285,13 +431,16 @@ def get_client():
     global _client
     with _client_lock:
         if _client is None:
-            if cfg.LLM_PROVIDER == "gemini":
+            if cfg.LLM_PROVIDER == "anthropic":
+                _client = AnthropicClient()
+            elif cfg.LLM_PROVIDER == "gemini":
                 _client = GeminiClient()
                 # Thieu model ID KHONG phai loi ket noi: van phai mo duoc SDK de
                 # chay list_models() -- lenh dung de lay chinh model ID do.
+                pre = "CLAUDE" if cfg.LLM_PROVIDER == "anthropic" else "GEMINI"
                 missing = [n for n, v in (
-                    ("GEMINI_MODEL_FLASH", cfg.LLM_MODEL_FLASH),
-                    ("GEMINI_MODEL_PRO", cfg.LLM_MODEL_PRO),
+                    (f"{pre}_MODEL_FLASH", cfg.LLM_MODEL_FLASH),
+                    (f"{pre}_MODEL_PRO", cfg.LLM_MODEL_PRO),
                 ) if not v]
                 if missing:
                     _client.config_note = (
