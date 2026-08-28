@@ -33,7 +33,6 @@ data/
 dict/
 *.csv
 *.npy
-*.json
 !retrieval/*.json
 !config/*.json
 
@@ -46,15 +45,11 @@ dict/
 # MacOS
 .DS_Store
 
-# Logs
-logs/
-*.log
+
 
 # Personal/Debug Notes
 Debug/
 
-# Dynamic frontend assets
-frontend/public/static/
 
 # AI Model Weights
 *.pt

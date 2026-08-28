@@ -1,0 +1,28 @@
+[
+  {
+    "sample_id": "sample_03",
+    "query_text": "Tìm 2 khoảnh khắc chính trong pha rút đích của chặng đua xe đạp: (1) góc quay từ trên cao khi nhóm 3 vận động viên đang bứt tốc về đích, (2) khoảnh khắc vận động viên áo vàng cán qua vạch đích đầu tiên và bắt giơ tay ăn mừng chiến thắng.",
+    "video_id": "L23_V015",
+    "n_events": 2,
+    "event1_s": 6450,
+    "event2_s": 6600,
+    "event1_e": 6575,
+    "event2_e": 6700
+  },
+  {
+    "sample_id": "sample_05",
+    "query_text": "Tìm 5 khoảnh khắc chính trong quy trình đổ bánh xèo: (1) khuấy đều bột màu vàng trong ca, (2) tráng bột lên chảo nóng, (3) rải các nguyên liệu nhân gồm giá đỗ và đậu xanh lên bánh, (4) gập đôi bánh xèo lại, (5) gắp bánh xèo đã hoàn thành ra dĩa.",
+    "video_id": "L27_V003",
+    "n_events": 5,
+    "event1_s": 5150,
+    "event2_s": 5250,
+    "event3_s": 5650,
+    "event4_s": 6125,
+    "event5_s": 6350,
+    "event1_e": 5175,
+    "event2_e": 5400,
+    "event3_e": 5800,
+    "event4_e": 6200,
+    "event5_e": 6375
+  }
+]
