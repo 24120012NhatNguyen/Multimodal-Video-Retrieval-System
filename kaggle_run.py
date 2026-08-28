@@ -211,7 +211,9 @@ say("", "Kiem tra LLM...")
 from retrieval.llm_client import get_client as _get_llm
 
 _llm = _get_llm()
-_probe = _llm.generate("Tra loi dung mot tu: OK", tier="flash")
+_probe = _llm.generate(
+    "Chi in ra dung hai ky tu OK, khong them bat ky chu nao khac.",
+    tier="flash")
 if _probe.ok:
     say(f"  LLM san sang: {_probe.model} ({_probe.latency_ms}ms) "
         f"-> {(_probe.text or '').strip()[:30]!r}")
@@ -259,4 +261,23 @@ print("\nO MAY LOCAL nho chay them server trang thai + anh:")
 print("  python socket_app.py")
 print("=" * 68 + "\n")
 
-subprocess.run(["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"])
+# --- Chay server NGAY TRONG tien trinh nay ------------------------------
+# KHONG dung subprocess.run(["uvicorn", ...]).
+#
+# Ly do, do duoc tu log that: subprocess sinh mot tien trinh Python MOI, no
+# import lai app.py va nap LAI tu dau ca ArtifactStore lan SigLIP. Trong khi do
+# tien trinh cha van song (dang cho con chay xong) va van giu ban cua no. Ket
+# qua: HAI ban cung ton tai suot phien.
+#
+#     store.X  = 154.640 x 1152 float32 = 713 MB moi ban  -> thua 713 MB RAM
+#     SigLIP   = mot ban thua nam tren GPU suot buoi
+#     va toan bo 88s nap lan dau la nem di
+#
+# Chay trong cung tien trinh thi `service` da nho san ket qua trong `_state`,
+# nen `import app` dung lai dung nhung doi tuong vua kiem tra o tren -- nap MOT
+# lan, va thu da kiem chinh la thu dem ra phuc vu.
+import uvicorn
+
+from app import app as _fastapi_app
+
+uvicorn.run(_fastapi_app, host="0.0.0.0", port=8080)

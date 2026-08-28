@@ -53,6 +53,8 @@ pts_time. Cot cos_to_prev khong duoc dung o day: phan bo cua no da bi chinh
 nguong lay mau cat cut nen khong phai tin hieu ranh gioi canh.
 """
 
+import numpy as np
+
 from retrieval.config import FusionConfig
 
 # Nguong xep hang trong cong thuc cua BTC.
@@ -79,8 +81,59 @@ def _as_dict(it):
     return it.model_dump() if hasattr(it, "model_dump") else dict(it)
 
 
+def densify(store, video_id, frame_idx, step=25, max_n=8):
+    """Frame nam trong KHOANG TRONG hai ben mot keyframe da chon.
+
+    Vi sao can -- do tren eval/kis_ground_truth.csv:
+
+        khoang cach hai keyframe lien tiep   trung vi  75 frame (3.0s)
+        do rong khoang dap an [s, e]         trung vi  75 frame
+
+    Hai con so bang nhau, nen moi khoang dap an chi chua 0-2 keyframe cua ta, va
+    co khoang khong chua cai nao. sample_10 la vi du: video xep hang #1, dung
+    video, ma van 0 diem -- khoang [11500, 11625] khong co keyframe nao.
+
+    Bai nop nhan `frame_id` BAT KY -- khong dong nao bat frame phai la keyframe
+    cua ta, va may local trich duoc frame bat ky tu mp4. Do duoc: lay mau buoc
+    25 frame (1.0s) phu 11/11 khoang dap an.
+
+    Lap dung KHOANG TRONG chu khong buoc co dinh: neu khong co keyframe nao roi
+    vao khoang dap an thi theo dinh nghia dap an nam GIUA hai keyframe, nen cho
+    dang tim la hai khoang trong ke ben. Buoc co dinh +/-2 lan thi voi xa nhat
+    50 frame, khong toi -- sample_10 can toi +76.
+
+    Tra ve danh sach frame, XEN KE hai phia va gan truoc xa sau.
+    """
+    df = store.frames_of(video_id)
+    if df.empty:
+        return []
+    fi = df["frame_idx"].to_numpy()
+    f = int(frame_idx)
+    prev = fi[fi < f].max() if (fi < f).any() else f
+    nxt = fi[fi > f].max(initial=f) if False else (fi[fi > f].min() if (fi > f).any() else f)
+
+    left, right = [], []
+    d = step
+    while len(left) + len(right) < 2 * max_n and d <= max(f - prev, nxt - f) + step:
+        if f - d > prev:
+            left.append(f - d)
+        if f + d < nxt:
+            right.append(f + d)
+        d += step
+
+    out, i = [], 0
+    while i < max(len(left), len(right)) and len(out) < 2 * max_n:
+        if i < len(right):
+            out.append(int(right[i]))
+        if i < len(left):
+            out.append(int(left[i]))
+        i += 1
+    return out
+
+
 def autofill(store, manual, candidates=None, config=None, ignore=None,
-             target=None, head=None, tail_gap=None):
+             target=None, head=None, tail_gap=None, densify_n=None,
+             densify_step=None, densify_top=None):
     """-> danh sach dap an da xep thu tu, dung schema Viec 2.
 
     manual      [{"video_id", "frame_idx"}] nguoi chon -- luon nam dau
@@ -96,7 +149,23 @@ def autofill(store, manual, candidates=None, config=None, ignore=None,
     head = getattr(cfg, "autofill_head", 20) if head is None else head
     tail_gap = (getattr(cfg, "autofill_tail_gap_sec", 8.0)
                 if tail_gap is None else tail_gap)
+    densify_n = (getattr(cfg, "autofill_densify_n", 2)
+                 if densify_n is None else densify_n)
+    densify_step = (getattr(cfg, "autofill_densify_step", 25)
+                    if densify_step is None else densify_step)
+    densify_top = (getattr(cfg, "autofill_densify_top", 5)
+                   if densify_top is None else densify_top)
     look = _lookup(store)
+
+    # Bien frame cua tung video, de khong sinh ra frame nam ngoai video.
+    _bounds = {}
+
+    def bounds(vid):
+        if vid not in _bounds:
+            df = store.frames_of(vid)
+            _bounds[vid] = ((int(df["frame_idx"].min()), int(df["frame_idx"].max()))
+                            if not df.empty else (None, None))
+        return _bounds[vid]
 
     ign = set()
     for it in (ignore or []):
@@ -107,13 +176,18 @@ def autofill(store, manual, candidates=None, config=None, ignore=None,
 
     out, seen = [], set()
 
-    def emit(video_id, frame_idx, source, reason):
+    def emit(video_id, frame_idx, source, reason, allow_between=False):
         key = (video_id, int(frame_idx))
         if key in seen or key in ign:
             return False
         hit = look.get(key)
         if hit is None:
-            return False
+            if not allow_between:
+                return False
+            # Frame nam GIUA hai keyframe: khong co trong bang, nhung van nop
+            # duoc va van xem duoc (server anh trich thang tu mp4 theo fps).
+            fps = store.fps.get(video_id) or 25.0
+            hit = (-1, float(frame_idx) / fps)
         gidx, pts = hit
         seen.add(key)
         out.append({
@@ -153,16 +227,39 @@ def autofill(store, manual, candidates=None, config=None, ignore=None,
     if not pool:
         return out[:target]
 
-    # --- 3. Phan DAU: nguyen thu hang tim kiem ---------------------------
+    # --- 3. Phan DAU: NGUYEN thu hang tim kiem ---------------------------
+    # KHONG xen gi vao day. Da thu va do: xen frame giua vao 20 o dau lam Final
+    # Score tut tu 0.3455 xuong 0.1818 -- no day chinh nhung keyframe dang trung
+    # ra ngoai. Cac o dau dang 0,60-1,00 diem moi o; khong danh cuoc chung.
     n_head = max(0, head - len(out))
     for key, _ in pool[:n_head]:
         emit(key[0], key[1], "autofill",
-             f"thu hang tim kiem (o 1-{head}, moi o dang "
+             f"thu hang tim kiem (o 1-{head}, o nay dang "
              f"{slot_weight(len(out) + 1):.2f} diem)")
 
     # --- 4. Phan DUOI: trai deu theo thoi gian ---------------------------
     # Den duoc day nghia la cac o dau da truot -> gia thuyet "dung dau bang" sai
     # -> phu them khoanh khac khac va video khac moi la viec dang lam.
+    # --- 3b. Xen frame GIUA, ngay sau phan dau ---------------------------
+    # Den duoc o 21 nghia la 20 keyframe dau da truot. Gia thuyet kha di nhat
+    # con lai: dung vung, sai khoanh khac -- vi bo keyframe thua thot ngang voi
+    # do hep cua dap an (xem ghi chu ham densify). Vay thi lang gieng +/-1s cua
+    # cac moc dau bang la nuoc di dung, va no khong cuop o cua ai nua.
+    if densify_n > 0 and densify_top > 0:
+        anchors = [k for k, _ in pool[:densify_top]]
+        plans = [(vid, fi, densify(store, vid, fi, densify_step, densify_n))
+                 for vid, fi in anchors]
+        # Vong tron qua cac moc: moc dau bang duoc frame gan nhat truoc, roi moi
+        # den luot moc thu hai -- de o tot nhat khong bi mot moc chiem het.
+        for i in range(2 * densify_n):
+            for vid, fi, fr in plans:
+                if len(out) >= target:
+                    break
+                if i < len(fr):
+                    emit(vid, fr[i], "autofill",
+                         f"lap khoang trong {fr[i] - fi:+d} frame quanh {vid}#{fi}",
+                         allow_between=True)
+
     picked = {}
     for r in out:
         picked.setdefault(r["video_id"], []).append(r["pts_time"])

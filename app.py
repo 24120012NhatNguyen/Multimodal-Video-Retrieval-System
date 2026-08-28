@@ -8,6 +8,7 @@ from retrieval import service
 from utils.logger_config import get_logger
 from utils.models import (
     AutofillRequest,
+    FeedbackRequest,
     KeyframeContextRequest,
     PanelSearchRequest,
     TextSearchRequest,
@@ -77,6 +78,59 @@ def fusion_search(request: TextSearchRequest):
 
     ignore_gidx = request.ignore_idxs if request.ignore else None
 
+    # --- Loc lai trong ket qua cua luot truoc ------------------------------
+    # Ba tham so `filter`, `filtervideo`, `videos` da duoc giao dien gui len tu
+    # lau nhung backend KHONG HE DOC -- nguoi dung bat "Trong ket qua cu" roi
+    # nhan ket qua nam ngoai tap da loc, ma khong co gi bao la nut do khong noi
+    # voi ai. Gio doc that.
+    restrict = None
+    restrict_gidx = None
+    prev_time = {}          # video_id -> moc thoi gian cua frame tot nhat luot truoc
+    if request.filter and request.videos:
+        restrict, prev_frames = [], []
+        for v in request.videos:
+            vid = v.get("video_id")
+            if not vid:
+                continue
+            restrict.append(vid)
+            vi = v.get("video_info") or {}
+            ts = [t for t in (vi.get("lst_pts_times") or []) if t is not None]
+            if ts:
+                prev_time[vid] = float(ts[0])
+            for t in ts:
+                prev_frames.append((vid, float(t)))
+        restrict = restrict or None
+
+        # Loc o cap FRAME, khong chi cap video.
+        #
+        # Bao cao tu nguoi dung: tim "nguoi dan ong ao xanh la tren xich lo" ->
+        # bat "Trong ket qua cu" -> go tiep "xe buyt mau cam" -> ket qua mat han
+        # phan nguoi dan ong. Dung: gioi han theo VIDEO thi luot hai tim xe buyt
+        # o BAT KY dau trong nhung video do.
+        #
+        # Gio giu lai chinh nhung frame cua luot truoc, cong them mot cua so thoi
+        # gian hai ben -- vi hai chi tiet cua cung mot canh thuong lech nhau vai
+        # giay ("xe buyt vua chay vuot qua" xay ra sau).
+        if prev_frames:
+            import numpy as _np
+
+            w = float(request.refine_window_sec)
+            store = svc["store"]
+            keep = set()
+            by_v = {}
+            for vid, t in prev_frames:
+                by_v.setdefault(vid, []).append(t)
+            for vid, ts in by_v.items():
+                df = store.frames_of(vid)
+                if df.empty:
+                    continue
+                pt = df["pts_time"].to_numpy(dtype=float)
+                gi = df["gidx"].to_numpy(dtype=int)
+                arr = _np.asarray(ts, dtype=float)
+                near = (_np.abs(pt[:, None] - arr[None, :]) <= w).any(axis=1)
+                keep.update(int(g) for g in gi[near])
+            restrict_gidx = keep or None
+
     result = svc["engine"].search(
         query_en=dq.query_en,
         query_vi=dq.query_vi,
@@ -87,7 +141,41 @@ def fusion_search(request: TextSearchRequest):
         ignore_gidx=ignore_gidx,
         kind=dq.kind,          # quyet dinh trong so giua thi giac va van ban
         modes=request.channel_modes,   # cong tac ASR/OCR do nguoi dung gat
+        restrict_videos=restrict,      # "Trong ket qua cu" -- cap video
+        restrict_gidx=restrict_gidx,   # ... va cap FRAME
     )
+
+    # --- Thu hep theo HUONG thoi gian --------------------------------------
+    # filtervideo: 0 khong loc | 1 chi giu frame SAU moc cu | 2 chi giu frame TRUOC.
+    # Dung khi da chot dung video va biet canh can tim nam ve phia nao so voi
+    # canh dang thay.
+    if restrict and request.filtervideo in (1, 2) and prev_time:
+        after = request.filtervideo == 1
+        kept = []
+        for v in result.get("videos", []):
+            t0 = prev_time.get(v["video_id"])
+            vi = v["video_info"]
+            if t0 is None:
+                kept.append(v)
+                continue
+            keep_i = [i for i, t in enumerate(vi.get("lst_pts_times") or [])
+                      if t is not None and ((t > t0) if after else (t < t0))]
+            if not keep_i:
+                continue
+            for key, arr in list(vi.items()):
+                if isinstance(arr, list) and len(arr) >= max(keep_i) + 1:
+                    vi[key] = [arr[i] for i in keep_i]
+            kept.append(v)
+        result["videos"] = kept
+        result["loc_huong"] = ("chi frame SAU moc cu" if after
+                               else "chi frame TRUOC moc cu")
+
+    if restrict:
+        result["loc_trong_ket_qua_cu"] = {
+            "n_video": len(restrict),
+            "n_frame_duoc_phep": len(restrict_gidx or ()),
+            "cua_so_giay": request.refine_window_sec,
+        }
 
     # Tra thang ket qua cua engine. `videos` da dung dang FE doc duoc
     # ({video_id, video_info:{lst_*}}) va con mang theo `explain` -- thu hang cua
@@ -251,8 +339,88 @@ def getrec():
     return []
 
 @app.post("/feedback")
-def feedback():
-    return []
+def feedback(request: FeedbackRequest):
+    """Tim lai bang chinh cac ANH da cham dung/sai (phan hoi lien quan).
+
+    Truoc day day la mot stub `return []` -- nut "Gui & tim lai" luon cho ra
+    "khong co ket qua nao khop", ma nguoi dung khong the biet la chua ai lam.
+
+    Cach lam (Rocchio, dang don gian nhat co the giai thich duoc):
+
+        q_moi = trung binh(vector cac frame DUNG) - beta * trung binh(cac frame SAI)
+
+    Roi tim bang chinh q_moi do tren toan corpus. Khong con truy van chu nao ca
+    -- day la tim bang HINH ANH, nen no bat duoc nhung thu ma cau chu khong ta
+    noi (mot kieu bo cuc, mot kieu do hoa ban tin).
+
+    beta nho hon 1 co y: anh SAI chi de day ket qua ra xa, khong duoc lan at
+    huong ma anh DUNG da chi ra.
+    """
+    svc = get_fusion()
+    if svc is None:
+        return []
+
+    import numpy as np
+
+    store = svc["store"]
+    from retrieval.engine import entry_key, parse_entry_key
+
+    look = {}
+    for v, f, g in zip(store.meta["video_id"], store.meta["frame_idx"],
+                       store.meta["gidx"]):
+        look[entry_key(v, f)] = int(g)
+
+    def vectors(keys):
+        idx = []
+        for it in (keys or []):
+            k = it if isinstance(it, str) else str(it)
+            g = look.get(k)
+            if g is None and parse_entry_key(k):
+                g = look.get(entry_key(*parse_entry_key(k)))
+            if g is not None:
+                idx.append(g)
+        return store.X[idx] if idx else None
+
+    pos = vectors(request.lst_pos_idxs)
+    neg = vectors(request.lst_neg_idxs)
+    if pos is None and neg is None:
+        return []
+
+    BETA = 0.35
+    q = np.zeros(store.X.shape[1], dtype=np.float32)
+    if pos is not None:
+        q += pos.mean(axis=0)
+    if neg is not None:
+        q -= BETA * neg.mean(axis=0)
+    n = float(np.linalg.norm(q))
+    if n < 1e-9:
+        return []
+    q = q / n
+
+    sims = store.X @ q
+    topk = min(int(request.k or 200), sims.shape[0])
+    part = np.argpartition(-sims, topk - 1)[:topk]
+    part = part[np.argsort(-sims[part])]
+
+    # Bo chinh nhung anh vua cham -- chung da nam trong tay nguoi dung roi.
+    seen = set(request.lst_pos_idxs or []) | set(request.lst_neg_idxs or [])
+    rows = []
+    for g in part:
+        r = store.meta.iloc[int(g)]
+        key = entry_key(str(r["video_id"]), int(r["frame_idx"]))
+        if key in seen:
+            continue
+        rows.append({"video_id": str(r["video_id"]),
+                     "frame_idx": int(r["frame_idx"]),
+                     "pts_time": float(r["pts_time"]),
+                     "score": float(sims[int(g)])})
+
+    from retrieval.panels import pack_videos
+
+    order = {}
+    for r in rows:
+        order.setdefault(r["video_id"], len(order))
+    return pack_videos(rows, order=order)
 
 @app.post("/translate")
 def translate(request: dict):
@@ -270,13 +438,72 @@ def translate(request: dict):
     return _translate(text) or ""
 
 @app.get("/getvideoshot")
-def getvideoshot(imgid: str):
+def getvideoshot(imgid: str, block_sec: float = 60.0):
+    """Toan bo keyframe cua video chua `imgid`, nhom theo KHOI THOI GIAN.
+
+    Truoc day day la stub tra ve rong -- trang "Ca video" mo ra chi thay
+    "Collection:  Video id:" trong tron, va nguoi dung tuong trang bi treo.
+
+    Khong nhom theo "shot" vi he nay KHONG co ranh gioi canh: bo keyframe duoc
+    lay mau theo do troi ngu nghia, khong theo cat canh. Cot cos_to_prev cung
+    khong dung duoc -- phan bo cua no da bi chinh nguong lay mau cat cut. Nhom
+    theo tung phut la cach chia trung thuc va van duyet duoc bang mat.
+    """
+    svc = get_fusion()
+    if svc is None:
+        return {"error": _fusion_state["error"], "collection": "", "video_id": "",
+                "video_name": "", "shots": {}, "selected_shot": "0"}
+
+    from retrieval.engine import entry_key, keyframe_url, parse_entry_key
+
+    store = svc["store"]
+    p = parse_entry_key(imgid)
+    if p:
+        video_id, sel_frame = p
+    else:
+        # Client cu gui chi so toan cuc, hoac chi gui ten video.
+        video_id, sel_frame = str(imgid), None
+        try:
+            g = int(imgid)
+            r = store.meta.iloc[g]
+            video_id, sel_frame = str(r["video_id"]), int(r["frame_idx"])
+        except (ValueError, IndexError):
+            pass
+
+    df = store.frames_of(video_id)
+    if df.empty:
+        return {"error": f"Video {video_id!r} khong co trong index",
+                "collection": "", "video_id": video_id, "video_name": video_id,
+                "shots": {}, "selected_shot": "0"}
+
+    # frame_idx duoc hoi co the KHONG phai keyframe cua ta (dap an cua BTC danh
+    # so theo he cua ho). Lay keyframe gan nhat de van danh dau dung cho.
+    if sel_frame is not None:
+        j = (df["frame_idx"] - sel_frame).abs().idxmin()
+        sel_frame = int(df.loc[j, "frame_idx"])
+
+    shots, selected = {}, "0"
+    for r in df.to_dict("records"):
+        fi, pts = int(r["frame_idx"]), float(r["pts_time"])
+        b = int(pts // block_sec)
+        lo, hi = int(b * block_sec), int((b + 1) * block_sec)
+        label = f"{lo // 60:02d}:{lo % 60:02d}-{hi // 60:02d}:{hi % 60:02d}"
+        sh = shots.setdefault(label, {"lst_keyframe_paths": [], "lst_idxs": [],
+                                      "lst_keyframe_idxs": [], "lst_pts_times": []})
+        sh["lst_keyframe_paths"].append(keyframe_url(video_id, fi))
+        sh["lst_idxs"].append(entry_key(video_id, fi))
+        sh["lst_keyframe_idxs"].append(fi)
+        sh["lst_pts_times"].append(round(pts, 2))
+        if sel_frame is not None and fi == sel_frame:
+            selected = label
+
     return {
-        "collection": "",
-        "video_id": "",
-        "video_name": "",
-        "shots": {},
-        "selected_shot": "0",
+        "collection": video_id.split("_")[0],
+        "video_id": video_id,
+        "video_name": video_id,
+        "n_keyframe": int(len(df)),
+        "shots": shots,
+        "selected_shot": selected,
     }
 # --------------------------------------------------
 
@@ -400,14 +627,26 @@ def trake_endpoint(request: TrakeRequest):
     events = [e.strip() for e in (request.events or []) if e and e.strip()]
     dq = None
     if not events:
-        from retrieval.query import decompose
+        import re as _re
+
+        from retrieval.query import _translate, decompose
 
         raw = request.query_vi or request.query_en
         if not raw.strip():
             return {"error": "Can `events` hoac `query_vi`", "status_code": 400}
-        dq = decompose(query_vi=request.query_vi, query_en=request.query_en,
-                       use_llm=request.decompose, kind="generic_chain")
-        events = [c for c in dq.clauses_en if c.strip()]
+
+        # BTC danh so su kien NGAY TRONG cau: "(1) ... (2) ... (3) ...".
+        # Cat theo dung cac moc do truoc -- khong phai doan, va khong phu thuoc
+        # vao LLM. decompose() cat theo dau cau nen gop het thanh MOT menh de,
+        # va TRAKE mot menh de thi khong con la TRAKE.
+        parts = _re.split(r"\(\s*\d+\s*\)", raw)
+        numbered = [p.strip(" ,.;:\n") for p in parts[1:] if p.strip(" ,.;:\n")]
+        if len(numbered) >= 2:
+            events = [(_translate(e) or e) for e in numbered]
+        else:
+            dq = decompose(query_vi=request.query_vi, query_en=request.query_en,
+                           use_llm=request.decompose, kind="generic_chain")
+            events = [c for c in dq.clauses_en if c.strip()]
         if not events:
             return {"error": ("khong tach duoc menh de nao tu truy van -- nhap "
                               "thang danh sach `events` bang tieng Anh"),
@@ -440,7 +679,8 @@ def trake_endpoint(request: TrakeRequest):
                     "events": events, "status_code": 404}
 
     aligned = engine.align_videos(events, video_ids, delta=delta, gamma=gamma,
-                                  min_gap=min_gap, normalize=request.normalize)
+                                  min_gap=min_gap, normalize=request.normalize,
+                                  n_candidates=request.n_candidates)
     if not aligned:
         return {"message": "Khong dong hang duoc chuoi su kien tren video nao.",
                 "events": events, "status_code": 404}
@@ -454,6 +694,11 @@ def trake_endpoint(request: TrakeRequest):
         a["keyframe_paths"] = [None if m["frame_idx"] is None
                                else f"/keyframe/{a['video_id']}/{int(m['frame_idx']):06d}.jpg"
                                for m in a["matched"]]
+        for ev in a.get("candidates") or []:
+            for c in ev:
+                c["path"] = (f"/keyframe/{a['video_id']}/"
+                             f"{int(c['frame_idx']):06d}.jpg")
+                c["id"] = f"{a['video_id']}#{c['frame_idx']}"
 
     best = aligned[0]
     return {

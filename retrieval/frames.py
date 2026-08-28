@@ -17,6 +17,10 @@ from retrieval.config import KEYFRAME_CACHE
 _locks = {}
 _locks_guard = threading.Lock()
 
+# Video dang duoc lam am nen -- de khong khoi dong hai lan cho cung mot video.
+_warming = set()
+_warming_guard = threading.Lock()
+
 
 def cache_path(video_id, frame_idx, root=KEYFRAME_CACHE):
     return os.path.join(root, video_id, f"{int(frame_idx):06d}.jpg")
@@ -61,11 +65,43 @@ class KeyframeImages:
         self.store = store
         self.root = root
 
-    def get(self, video_id, frame_idx):
+    def warm_async(self, video_id):
+        """Lam am ca video o LUONG NEN, moi video dung mot lan.
+
+        Vi sao can: trang "Ca video" yeu cau TAT CA keyframe cung luc. Do duoc
+        tren L21_V005 (333 keyframe): trinh duyet ban 333 yeu cau song song ->
+        333 tien trinh ffmpeg cung luc, may dung hinh. Trong khi warm_video()
+        doc file MOT lan va lay het 333 anh trong 12s bang MOT tien trinh.
+
+        Nen: van tra ngay anh duoc hoi (seek ~109ms), dong thoi am tham lam am
+        phan con lai. Cac yeu cau sau do doc thang tu cache.
+        """
+        with _warming_guard:
+            if video_id in _warming:
+                return False
+            _warming.add(video_id)
+
+        def run():
+            try:
+                self.warm_video(video_id)
+            except Exception:
+                pass
+            finally:
+                with _warming_guard:
+                    _warming.discard(video_id)
+
+        threading.Thread(target=run, daemon=True).start()
+        return True
+
+    def get(self, video_id, frame_idx, warm=True):
         """-> duong dan JPG tren dia, trich neu chua co. None neu khong tra duoc."""
         out = cache_path(video_id, frame_idx, self.root)
         if os.path.exists(out):
             return out
+
+        # Truot cache -> nhieu kha nang ca video nay sap bi hoi het. Lam am nen.
+        if warm:
+            self.warm_async(video_id)
 
         df = self.store.frames_of(video_id)
         if df.empty:

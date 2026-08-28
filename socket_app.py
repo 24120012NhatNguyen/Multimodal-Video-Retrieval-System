@@ -30,7 +30,7 @@ import socketio
 import uvicorn
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from retrieval.answers import (
     kis_csv,
@@ -418,20 +418,46 @@ def keyframe_image(video_id: str, name: str):
     Chay o LOCAL vi Kaggle khong mount video goc. Chi 3,3% keyframe moi co san
     JPG cua BTC nen phai trich thang tu mp4 de anh dung voi frame_idx nop bai.
     """
+    # Tra dung MA HTTP, khong phai 200 kem JSON. The <img> cua trinh duyet
+    # nhan 200 se coi JSON la du lieu anh -> anh hong ma khong co tin hieu nao;
+    # 404 thi devtools va log deu thay ngay.
     svc = get_media()
     if svc is None:
-        return {"error": _media["error"], "status_code": 503}
+        return JSONResponse({"error": _media["error"]}, status_code=503)
     try:
         frame_idx = int(os.path.splitext(name)[0])
     except ValueError:
-        return {"error": f"ten anh khong hop le: {name!r}", "status_code": 400}
+        return JSONResponse({"error": f"ten anh khong hop le: {name!r}"},
+                            status_code=400)
 
     path = svc.get(video_id, frame_idx)
     if not path:
-        return {"error": f"khong trich duoc {video_id}#{frame_idx}",
-                "status_code": 404}
+        return JSONResponse(
+            {"error": f"khong trich duoc {video_id}#{frame_idx}",
+             "ghi_chu": ("anh chua co trong data/keyframe_cache va cung khong co "
+                         "data/videos de trich. Tai keyframe_cache ve, hoac bo "
+                         "qua -- phan con lai cua he thong khong phu thuoc anh nay.")},
+            status_code=404)
     return FileResponse(path, media_type="image/jpeg",
                         headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/warm/{video_id}")
+def warm(video_id: str):
+    """Trich truoc toan bo keyframe cua mot video (MOT lan doc file).
+
+    Trang "Ca video" nen goi cai nay truoc khi hien anh: 333 keyframe lam theo
+    kieu seek tung anh la 333 tien trinh ffmpeg song song, con o day la mot.
+    """
+    svc = get_media()
+    if svc is None:
+        return {"error": _media["error"], "status_code": 503}
+    started = svc.warm_async(video_id)
+    df = _media["store"].frames_of(video_id)
+    return {"video_id": video_id, "n_keyframe": int(len(df)),
+            "dang_lam_am": started,
+            "ghi_chu": ("da bat dau lam am o luong nen" if started
+                        else "video nay dang duoc lam am roi")}
 
 
 ##################### Clip ngan (local) ########################
@@ -444,11 +470,12 @@ def clip(video_id: str, name: str, window: float = 2.0):
     """
     svc = get_media()
     if svc is None:
-        return {"error": _media["error"], "status_code": 503}
+        return JSONResponse({"error": _media["error"]}, status_code=503)
     try:
         frame_idx = int(os.path.splitext(name)[0])
     except ValueError:
-        return {"error": f"ten clip khong hop le: {name!r}", "status_code": 400}
+        return JSONResponse({"error": f"ten clip khong hop le: {name!r}"},
+                            status_code=400)
 
     if "clips" not in _media:
         from retrieval.clips import ClipCache
@@ -456,7 +483,13 @@ def clip(video_id: str, name: str, window: float = 2.0):
 
     path, info = _media["clips"].get(video_id, frame_idx, window)
     if not path:
-        return {"error": f"khong cat duoc clip: {info}", "status_code": 404}
+        # Khong co data/videos la truong hop BINH THUONG (BTC khong chia se
+        # video goc). Clip la tinh nang tuy chon; thieu no khong anh huong gi
+        # den tim kiem, cham diem hay nop bai.
+        return JSONResponse(
+            {"error": f"khong cat duoc clip: {info}",
+             "ghi_chu": "can data/videos/*.mp4. Khong co thi bo qua tinh nang clip."},
+            status_code=404)
     return FileResponse(
         path, media_type="video/mp4",
         headers={"Cache-Control": "public, max-age=86400",
@@ -548,18 +581,27 @@ def qa_endpoint(request: QaRequest):
         _media["bridge"] = ContextBridge(store)
     bridge = _media["bridge"]
 
-    frames, image_paths, ocr_texts = [], [], []
+    # OCR giu NGUYEN theo tung frame, khong gop phang: cau hoi kieu "con so
+    # hien thi CUOI CUNG" chi tra loi duoc khi biet chuoi nao thuoc frame nao.
+    frames, image_paths, ocr_by_frame, timestamps = [], [], [], []
     for r in rows:
         fi, pts = int(r["frame_idx"]), float(r["pts_time"])
         p = svc.get(request.video_id, fi)
         if not p:
             continue
         image_paths.append(p)
+        timestamps.append(pts)
         o = bridge.ocr_at(request.video_id, pts, frame_idx=fi)
         texts = [i["text"] for i in o.get("items", []) if i.get("text")]
-        ocr_texts.extend(texts)
+        # bo trung TRONG cung mot frame, giu thu tu
+        seen_f, uniq_f = set(), []
+        for t in texts:
+            if t not in seen_f:
+                seen_f.add(t)
+                uniq_f.append(t)
+        ocr_by_frame.append(uniq_f)
         frames.append({"frame_idx": fi, "pts_time": round(pts, 3),
-                       "n_ocr": len(texts)})
+                       "n_ocr": len(uniq_f)})
 
     if not image_paths:
         return {"error": "Khong the trich xuat anh nao", "status_code": 404}
@@ -569,15 +611,22 @@ def qa_endpoint(request: QaRequest):
     asr = bridge.asr_at(request.video_id, mid, pad=(end_pts - start_pts) / 2.0)
     asr_texts = [seg["text"] for seg in asr.get("segments", []) if seg.get("text")]
 
-    # bo trung OCR nhung giu thu tu
-    seen, ocr_uniq = set(), []
-    for t in ocr_texts:
-        if t not in seen:
-            seen.add(t)
-            ocr_uniq.append(t)
+    ocr_uniq = [t for fr in ocr_by_frame for t in fr]
 
-    qa = solve_qa(request.video_id, request.question, image_paths, ocr_uniq,
-                  asr_texts=asr_texts, window=(start_pts, end_pts))
+    qa = solve_qa(request.video_id, request.question, image_paths, ocr_by_frame,
+                  asr_texts=asr_texts, window=(start_pts, end_pts),
+                  timestamps=timestamps)
+    if qa.get("degraded"):
+        # Xuong cap la CO Y (khong lam sap endpoint), nhung phai noi ro vi sao.
+        # Truoc day giao dien chi do ra mot dong OCR dai va nguoi dung tuong
+        # VLM tra loi nhu vay. Nguyen nhan hay gap nhat: chay `python
+        # socket_app.py` ma quen export ANTHROPIC_API_KEY -- key dat tren Kaggle
+        # chi den duoc backend tim kiem, KHONG den may nay.
+        qa["cach_sua"] = (
+            "Q/A chay o MAY NAY (socket_app.py), khong phai tren Kaggle. "
+            "Dat key roi chay lai:  export ANTHROPIC_API_KEY=...  "
+            "&& python socket_app.py"
+        )
     return {
         "video_id": request.video_id,
         # khoa cu: frame dai dien
@@ -585,6 +634,7 @@ def qa_endpoint(request: QaRequest):
         "pts_time": frames[0]["pts_time"],
         "answer": qa["answer"],
         "degraded": qa["degraded"],
+        "cach_sua": qa.get("cach_sua"),
         "vlm": {k: v for k, v in qa.items() if k != "answer"},
         "frames": frames,
         "cua_so": {"start": round(start_pts, 3), "end": round(end_pts, 3)},
@@ -600,7 +650,17 @@ def qa_endpoint(request: QaRequest):
 @app.get("/health")
 async def health():
     svc = get_media()
+    llm = {}
+    try:
+        from retrieval import llm_client
+
+        st = llm_client.status()
+        llm = {"san_sang": any(st.get("kha_dung", {}).values()),
+               "chi_tiet": st}
+    except Exception as e:
+        llm = {"san_sang": False, "loi": f"{type(e).__name__}: {e}"}
     return {
+        "llm": llm,
         "ok": True,
         "role": "local state + media server",
         "n_question": len(AnswerDict),

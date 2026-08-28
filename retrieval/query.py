@@ -28,40 +28,85 @@ from retrieval.llm_client import get_client
 
 DECOMPOSE_TIER = "pro"
 
-_PROMPT = """Ban la bo phan ra truy van cho mot he thong tim kiem video tin tuc Viet Nam.
+_PROMPT = """Bạn là bộ phân rã truy vấn cho hệ thống tìm kiếm video tin tức Việt Nam.
 
-Truy van cua nguoi dung (tieng Viet): {q}
+Truy vấn của người dùng: {q}
 
-Hay tra ve DUNG mot object JSON, khong kem giai thich, theo dang:
+Trả về DUY NHẤT một object JSON, không giải thích, không markdown:
 {{
-  "clauses_en": ["...", "..."],
+  "reasoning": "một câu ngắn",
+  "anchors": [{{"text": "...", "channel": "ocr" | "asr" | "any"}}],
+  "kind": "anchored" | "generic_chain",
+  "clauses_en": ["..."],
   "query_vi": "...",
-  "anchors": ["...", "..."],
-  "kind": "generic_chain" | "anchored",
-  "why": "mot cau ngan"
+  "question": null
 }}
 
-Quy tac:
-- "clauses_en": tach truy van thanh 1-5 menh de THI GIAC doc lap, THEO DUNG THU
-  TU THOI GIAN trong truy van. Moi menh de la mot cau tieng Anh ngan mo ta thu
-  NHIN THAY duoc trong khung hinh.
-- "query_vi": giu nguyen tieng Viet co dau, giu lai TAT CA danh tu rieng va con
-  so trong truy van goc -- day la phan co gia tri nhat cho tim kiem van ban.
-- "anchors": nhung chi tiet HIEM, de nhan ra, gan nhu chac chan chi xuat hien o
-  dung mot video: ten rieng, ten to chuc, chu tren bien hieu/banner, so hieu,
-  dia danh cu the. KHONG ke cac hanh dong hay vat the pho bien.
-- "kind": phan loai truy van
-    "anchored"      = co it nhat mot anchor du hiem de mot minh no chot duoc
-                      video. Vi du: bang hieu "London Zoo", doan "Nhan Nghia
-                      Duong", bien so xe cu the.
-    "generic_chain" = moi menh de deu la hanh dong/canh PHO BIEN, rieng le thi
-                      hang nghin video co the khop; chi co THU TU va khoang cach
-                      THOI GIAN giua chung moi phan biet duoc. Vi du: "nguoi
-                      dung duoi nuoc roi den -> keo luoi ca luc binh minh ->
-                      nhom nguoi den quay phim".
-  Khi phan van, chon "generic_chain": dong hang theo thoi gian chi ton them mot
-  chut tinh toan, con bo sot anchor thi mat hut ket qua.
-- Khong bia them chi tiet khong co trong truy van goc.
+Quy tắc:
+
+- "reasoning": trước khi quyết định, tự hỏi hai điều — truy vấn này mô tả MỘT
+  cảnh hay một CHUỖI cảnh nối tiếp, và có chi tiết nào hiếm tới mức một mình nó
+  chốt được video không.
+
+- "anchors": chi tiết hiếm, gần như chắc chắn chỉ xuất hiện ở đúng một video —
+  tên riêng, tên tổ chức, chữ trên biển hiệu hoặc banner, số hiệu, địa danh cụ
+  thể. KHÔNG kể hành động hay vật thể phổ biến.
+  "channel": "ocr" nếu là chữ hiện trên màn hình; "asr" nếu là thứ được nói ra;
+  "any" nếu không chắc.
+
+- "kind":
+    "anchored"      = có ít nhất một anchor đủ hiếm để một mình nó chốt được video.
+    "generic_chain" = mọi mệnh đề đều là cảnh phổ biến; chỉ THỨ TỰ và khoảng cách
+                      thời gian giữa chúng mới phân biệt được.
+  Khi phân vân, chọn "generic_chain": dóng hàng theo thời gian chỉ tốn thêm chút
+  tính toán, còn bỏ sót anchor thì mất hút kết quả.
+
+- "clauses_en": 1-5 mệnh đề THỊ GIÁC độc lập, theo đúng thứ tự thời gian.
+  CHỈ tách khi truy vấn thật sự mô tả các cảnh NỐI TIẾP nhau. Một cảnh duy nhất
+  thì đúng MỘT mệnh đề. Thà ít còn hơn tách thừa — tách thừa buộc hệ thống đi tìm
+  một chuỗi không tồn tại.
+  Viết như alt-text của ảnh: cụm mô tả, thì hiện tại, KHÔNG dùng "the video shows"
+  hay "we see".
+  Với khái niệm Việt Nam: dùng THUẬT NGỮ TIẾNG ANH đã có sẵn nếu có
+  (múa lân -> "lion dance", nón lá -> "conical straw hat", xích lô -> "cyclo").
+  Chỉ giữ nguyên từ Việt khi chính nó là tên thông dụng trong tiếng Anh, và khi
+  đó viết KHÔNG DẤU như người Anh viết: "ao dai" chứ không phải "áo dài",
+  "banh mi", "pho", "xe om".
+  Toàn bộ clauses_en phải là tiếng Anh thuần, KHÔNG được lẫn chữ có dấu.
+
+- "query_vi": giữ nguyên tiếng Việt có dấu, giữ TẤT CẢ danh từ riêng và con số
+  trong truy vấn gốc.
+
+- "question": nếu truy vấn có câu hỏi cần ĐỌC chi tiết từ khung hình (con số, chữ,
+  màu sắc, đếm số lượng), tách riêng vào đây bằng tiếng Việt và KHÔNG đưa nó vào
+  clauses_en. Không có thì để null.
+
+- Không bịa thêm chi tiết không có trong truy vấn gốc.
+
+Ví dụ 1
+Truy vấn: "Phóng sự về đoàn Nhân Nghĩa Đường biểu diễn múa lân"
+{{
+  "reasoning": "Một cảnh duy nhất, nhưng tên đoàn là chi tiết rất hiếm.",
+  "anchors": [{{"text": "Nhân Nghĩa Đường", "channel": "ocr"}}],
+  "kind": "anchored",
+  "clauses_en": ["a lion dance performance on a street"],
+  "query_vi": "Phóng sự về đoàn Nhân Nghĩa Đường biểu diễn múa lân",
+  "question": null
+}}
+
+Ví dụ 2
+Truy vấn: "Hình ảnh một con cá được đặt lên cân, sau đó có cảnh một con cá khác cùng loại bị một người cầm đuôi. Con số hiển thị cuối cùng trên cân là bao nhiêu?"
+{{
+  "reasoning": "Hai cảnh nối tiếp, cả hai đều phổ biến; không có chi tiết hiếm nào.",
+  "anchors": [],
+  "kind": "generic_chain",
+  "clauses_en": [
+    "a fish placed on a weighing scale",
+    "a person holding a fish by its tail"
+  ],
+  "query_vi": "Hình ảnh một con cá được đặt lên cân, sau đó có cảnh một con cá khác cùng loại bị một người cầm đuôi",
+  "question": "Con số hiển thị cuối cùng trên cân là bao nhiêu?"
+}}
 """
 
 
@@ -77,6 +122,13 @@ class DecomposedQuery:
     # Chi tiet hiem du de mot minh no chot duoc video (ten rieng, chu tren bien
     # hieu, so hieu). Rong = khong co gi bam vao.
     anchors: List[str] = field(default_factory=list)
+    # {anchor: "ocr"|"asr"|"any"} -- GOI Y cho nguoi dung nen bat kenh nao.
+    # KHONG tu dong doi trong so: da do va viec do lam ket qua te di (xem
+    # retrieval/engine.py, muc bo ho so "anchored").
+    anchor_channels: dict = field(default_factory=dict)
+    # Phan cau hoi can DOC chi tiet tu khung hinh (Q&A). Khong phai menh de thi
+    # giac nen KHONG duoc dua vao clauses_en.
+    question: Optional[str] = None
     # "anchored"      -> tim phang la du, uu tien kenh van ban
     # "generic_chain" -> tung menh de deu pho bien, chi thu tu thoi gian moi
     #                    phan biet duoc -> phai dong hang bang DP
@@ -102,6 +154,8 @@ class DecomposedQuery:
             "query_en": self.query_en,
             "clauses_en": self.clauses_en,
             "anchors": self.anchors,
+            "anchor_channels": self.anchor_channels,
+            "question": self.question,
             "kind": self.kind,
             "kind_why": self.kind_why,
             "kind_source": self.kind_source,
@@ -443,17 +497,35 @@ def decompose(query_vi, query_en=None, use_llm=True, kind=None):
                            if str(c).strip()]
                 vi = str(data.get("query_vi") or query_vi).strip()
                 if clauses:
-                    anchors = [str(a).strip()
-                               for a in (data.get("anchors") or []) if str(a).strip()]
+                    # anchors gio la object {text, channel}. Nhan CA hai dang:
+                    # ban cu tra ve mang chuoi phang.
+                    anchors, anchor_channels = [], {}
+                    for a in (data.get("anchors") or []):
+                        if isinstance(a, dict):
+                            t = str(a.get("text") or "").strip()
+                            ch = str(a.get("channel") or "any").strip().lower()
+                            if ch not in ("ocr", "asr", "any"):
+                                ch = "any"
+                        else:
+                            t, ch = str(a).strip(), "any"
+                        if t:
+                            anchors.append(t)
+                            anchor_channels[t] = ch
+                    question = str(data.get("question") or "").strip() or None
                     k = str(data.get("kind") or "").strip()
                     if k in ("anchored", "generic_chain"):
-                        why = str(data.get("why") or "").strip() or None
+                        # "reasoning" o dau (anh huong duoc quyet dinh), "why" la
+                        # ten cu -- nhan ca hai de cache doi khong vo.
+                        why = (str(data.get("reasoning") or data.get("why") or "")
+                               .strip() or None)
                         src = "llm"
                     else:
                         # Model tra ve nhan la -> tu phan loai lai, khong doan bua.
                         k, anchors2, why = classify(query_vi, clauses)
                         anchors = anchors or anchors2
                         src = "heuristic"
+                    if not anchors:
+                        anchor_channels = {}
                     if forced:
                         k, src = forced, "nguoi_dung"
                         why = "nguoi dung chon truc tiep"
@@ -462,6 +534,7 @@ def decompose(query_vi, query_en=None, use_llm=True, kind=None):
                         query_en="\n".join(clauses),
                         clauses_en=clauses,
                         anchors=anchors, kind=k, kind_why=why, kind_source=src,
+                        anchor_channels=anchor_channels, question=question,
                         source="llm", model=res.model)
             fail_reason = "model tra ve JSON khong doc duoc"
         else:

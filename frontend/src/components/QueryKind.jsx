@@ -46,8 +46,42 @@ function QueryKind({ meta, alignMode, setAlignMode }) {
             </span>
           </span>
           {q.anchors && q.anchors.length > 0 && (
-            <span className="chip" title="Danh từ riêng hệ thống dò được">
-              {q.anchors.join(", ")}
+            <>
+              {q.anchors.map((a) => {
+                // Kênh gợi ý cho từng mỏ neo. CHỈ là gợi ý — hệ thống KHÔNG tự
+                // bật, vì đo được rằng đổi trọng số tự động làm kết quả tệ đi
+                // (có mẫu SigLIP để đáp án hạng #1 toàn corpus rồi bị ba kênh
+                // văn bản kéo xuống #115). Người dùng nhìn thấy kết quả, bộ
+                // phân loại thì không.
+                const ch = (q.anchor_channels || {})[a];
+                const label =
+                  ch === "ocr" ? "thử bật Chữ trên hình" :
+                  ch === "asr" ? "thử bật Lời nói" : null;
+                return (
+                  <span
+                    key={a}
+                    className={`chip ${label ? "chip--warn" : ""}`}
+                    title={
+                      label
+                        ? `Mỏ neo "${a}" — ${label}. Hệ thống không tự bật: bật tự động đo được là làm kết quả tệ đi.`
+                        : `Mỏ neo "${a}"`
+                    }
+                  >
+                    {a}
+                    {label && (
+                      <span className="text-[color:var(--muted)]">· {label}</span>
+                    )}
+                  </span>
+                );
+              })}
+            </>
+          )}
+          {q.question && (
+            <span
+              className="chip"
+              title="Phần câu hỏi cần ĐỌC chi tiết từ khung hình — không đưa vào tìm kiếm thị giác. Dùng nút Hỏi VLM trên ảnh."
+            >
+              Hỏi–Đáp: {q.question.slice(0, 44)}
             </span>
           )}
           {meta.aligned && <span className="chip chip--warn">đã dóng hàng</span>}

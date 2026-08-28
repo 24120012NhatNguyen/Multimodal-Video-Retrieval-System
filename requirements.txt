@@ -19,7 +19,5 @@ deep-translator
 # 'anthropic'" va he thong tut xuong che do khong-LLM -- van tim kiem duoc
 # nhung mat phan ra truy van va Q/A.
 anthropic>=1.1.0
-# Duong lui, chi dung khi LLM_PROVIDER=gemini.
-google-genai
 torch
 scipy

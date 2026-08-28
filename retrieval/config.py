@@ -149,6 +149,14 @@ class FusionConfig:
     # nop khong nen bi gioi han boi thu nguoi dung dang nhin thay. Do: pool 500
     # -> Final 0.6000, pool 3000 -> 0.6286 (Q5 lot vao o hang 87).
     autofill_pool_topk: int = 3000
+    # --- Xen frame GIUA cac keyframe ---------------------------------------
+    # Bo keyframe cua ta thua thot ngang voi do hep cua dap an: khoang cach hai
+    # keyframe trung vi 75 frame, do rong khoang dap an cung 75. Nen moi khoang
+    # dap an chi chua 0-2 keyframe, co khoang chua cai nao.
+    # Bai nop nhan frame_id bat ky, nen lay mau day quanh cac moc da tim ra.
+    autofill_densify_step: int = 25      # 1.0s o 25fps
+    autofill_densify_n: int = 2          # +/-1 va +/-2 buoc -> 4 frame moi moc
+    autofill_densify_top: int = 5        # chi xen quanh 5 moc dau bang
     # --- cac hang so cua co che MMR cu, khong con duoc dung -----------------
     # Giu lai de cau hinh cu doc vao khong bao loi. MMR da bi go: do duoc no lam
     # Final Score tut tu 0.5714 xuong 0.3429.

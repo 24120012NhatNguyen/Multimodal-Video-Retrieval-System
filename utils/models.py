@@ -77,6 +77,9 @@ class TextSearchRequest(BaseModel):
     # Cong tac tung kenh do NGUOI DUNG gat: {"asr"|"ocr"|"meta"|"siglip":
     # "auto"|"on"|"off"}. Thieu khoa nao thi khoa do la "auto".
     channel_modes: Optional[Dict[str, str]] = None
+    # "Trong ket qua cu": giu lai frame cua luot truoc + cua so nay ve hai phia.
+    # Hai chi tiet cua cung mot canh thuong lech nhau vai giay.
+    refine_window_sec: float = 5.0
 
     @field_validator("query_en", "query_vi", "textquery", mode="before")
     @classmethod
@@ -168,8 +171,17 @@ class FeedbackRequest(BaseModel):
     # FE gửi state `videos` là mảng kết quả (group_result_by_video); giữ Dict để
     # tương thích ngược với các client cũ.
     videos: Union[List[Dict[str, Any]], Dict[str, Any]] = []
-    lst_pos_idxs: List[int] = []
-    lst_neg_idxs: List[int] = []
+    # Khoa keyframe "video_id#frame_idx", KHONG phai so nguyen: he cu dung chi so
+    # toan cuc trong dict/id2img.json, thu muc do da bi xoa.
+    lst_pos_idxs: List[str] = []
+    lst_neg_idxs: List[str] = []
+
+    @field_validator("lst_pos_idxs", "lst_neg_idxs", mode="before")
+    @classmethod
+    def _keys(cls, v: Any) -> List[str]:
+        if not isinstance(v, list):
+            return []
+        return [x if isinstance(x, str) else str(x) for x in v]
 
     @field_validator("k", mode="before")
     @classmethod
@@ -277,6 +289,9 @@ class TrakeRequest(BaseModel):
     gamma: Optional[float] = None
     min_gap: Optional[float] = None
     normalize: bool = True
+    # So ung vien tra ve cho TUNG su kien, ngoai lua chon cua DP. He nay co
+    # nguoi dung ngoi trong: DP chon nham thi ho luot day anh nay va chot tay.
+    n_candidates: int = 12
 
     @field_validator("video_id", "query_vi", "query_en", mode="before")
     @classmethod
@@ -297,6 +312,11 @@ class TrakeRequest(BaseModel):
     @classmethod
     def _topn(cls, v: Any) -> int:
         return _int_or_default(v, 20)
+
+    @field_validator("n_candidates", mode="before")
+    @classmethod
+    def _nc(cls, v: Any) -> int:
+        return max(0, min(40, _int_or_default(v, 12)))
 
 class QaRequest(BaseModel):
     """Yêu cầu giải quyết câu hỏi QA thông qua VLM.

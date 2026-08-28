@@ -8,6 +8,8 @@ nam o khop chinh xac danh tu rieng ("Cho Lon", "Nhan Nghia Duong"); SigLIP huan
 luyen chu yeu tieng Anh va khong hieu danh tu rieng tieng Viet.
 """
 
+import numpy as np
+
 from fusion import explain, frames_in_videos, rrf, siglip_video_rank
 from retrieval.trake import (dp_alignment, event_stats, events_to_scores,
                              fill_skipped)
@@ -46,12 +48,34 @@ CHANNEL_GROUP = {
 # khong co gi de bam vao nhung van tra ve danh sach da xep hang, va RRF chi
 # dung thu hang nen no duoc tinh du diem.
 #
-# CANH BAO: bo eval hien khong co truy van NAO co danh tu rieng, nen ho so
-# "anchored" duoi day CHUA duoc do. Cac so cua no van la phong doan.
+# DA DO TREN GROUND TRUTH THAT (eval/kis_ground_truth.csv, 11 mau, trong do 4
+# mau duoc bo phan loai xep vao "anchored"):
+#
+#   ho so anchored                          Final   video trong top-30
+#   siglip 1.5 / meta 2.0 / asr,ocr 1.5     0.3818        72.7%   <- doan, ban cu
+#   siglip 2.0 / meta 1.0 / asr,ocr 0.5     0.4000        81.8%
+#   siglip 3.0 / meta 1.0 / ocr 1.0         0.4727        81.8%
+#   siglip 4.0 / meta 0.5 / asr,ocr 0.5     0.5091        90.9%
+#   CHI siglip (giong generic_chain)        0.5636        90.9%   <- tot nhat
+#
+# Truong hop lo ro nhat la sample_12 ("phien toa gia dinh tai truong SIU"):
+# SigLIP dat dap an o hang #1 TREN TOAN BO 154.640 frame, nhung ba kenh van ban
+# -- von khong co tin hieu that cho truy van do -- keo video xuong hang #115.
+#
+# Nen KHONG con ho so rieng cho "anchored". Che do TU DONG luon la chi-thi-giac.
+# Kenh van ban van con nguyen gia tri, nhung phai do NGUOI DUNG bat: do tren
+# sample_02, bat het van ban dua video dung tu hang #10 len #4. Nguoi ngoi truoc
+# man hinh biet truy van cua minh co danh tu rieng that hay khong; bo phan loai
+# thi doan, va doan sai thi tra gia rat dat.
+#
+# `kind` van duoc tinh va van co ich -- no quyet dinh co chay dong hang DP hay
+# khong -- nhung no KHONG con doi trong so nua.
+_AUTO_WEIGHTS = {"siglip": 1.0, "meta": 0.0, "asr": 0.0, "ocr": 0.0}
 WEIGHTS_BY_KIND = {
-    "generic_chain": {"siglip": 1.0, "meta": 0.0, "asr": 0.0, "ocr": 0.0},
-    "anchored": {"siglip": 1.5, "meta": 2.0, "asr": 1.5, "ocr": 1.5},
+    "generic_chain": dict(_AUTO_WEIGHTS),
+    "anchored": dict(_AUTO_WEIGHTS),
 }
+
 
 # Kenh BM25 chi duoc tinh khi diem cua video >= ty le nay so voi diem cao nhat
 # CUA CHINH KENH DO. Khong co cong nay thi video xep hang 80 voi diem gan 0 van
@@ -230,7 +254,8 @@ class FusionEngine:
     # ------------------------------------------------------------------
     def search(self, query_en=None, query_vi=None, video_topn=None,
                frame_topk=None, weights=None, channels=None,
-               ignore_gidx=None, restrict_videos=None, kind=None, modes=None):
+               ignore_gidx=None, restrict_videos=None, kind=None, modes=None,
+               restrict_gidx=None):
         """Luong day du -> danh sach video kem frame, dung dang UI dang dung."""
         video_topn = video_topn or self.cfg.video_topn
         frame_topk = frame_topk or self.cfg.frame_topk
@@ -257,7 +282,8 @@ class FusionEngine:
                     "channel_modes": normalize_modes(modes),
                     "weights_note": weight_note}
 
-        frames = self._frames(query_en, top_ids, frame_topk, ignore_gidx)
+        frames = self._frames(query_en, top_ids, frame_topk, ignore_gidx,
+                              restrict_gidx=restrict_gidx)
 
         rrf_score = dict(top)
         order = {v: i for i, v in enumerate(top_ids)}
@@ -332,7 +358,7 @@ class FusionEngine:
 
     # ------------------------------------------------------------------
     def align_videos(self, clauses, video_ids, delta=None, gamma=None,
-                     min_gap=None, normalize=True, tau=None):
+                     min_gap=None, normalize=True, tau=None, n_candidates=0):
         """Dong hang chuoi su kien tren tung video, xep lai theo diem DP.
 
         Day la buoc an thua voi truy van "chuoi hanh dong chung chung": tung
@@ -379,15 +405,43 @@ class FusionEngine:
                     "weak": pi == -1,
                 })
             n_skip = sum(1 for m in matched if m["skipped"])
-            out.append({"video_id": vid, "dp_score": float(score),
-                        "matched": matched,
-                        "n_frame": len(pts),
-                        "n_skipped": n_skip})
+            item = {"video_id": vid, "dp_score": float(score),
+                    "matched": matched,
+                    "n_frame": len(pts),
+                    "n_skipped": n_skip}
+
+            # --- Ung vien cho TUNG su kien ------------------------------------
+            # DP tra ve DUNG MOT frame moi su kien, va khi hai su kien nhin gan
+            # giong nhau thi no chon nham ma khong co duong lui. Do tren
+            # eval/trake_ground_truth.json (sample_03): DP chon frame 6672 cho su
+            # kien 1, ma 6672 lai nam trong khoang cua su kien 2.
+            #
+            # He nay CO NGUOI DUNG ngoi trong. Nen ngoai lua chon cua DP, tra
+            # them vai ung vien tot nhat cho tung su kien, xep theo thoi gian --
+            # nguoi dung luot qua day anh do va chot bang mat, nhanh hon nhieu so
+            # voi go lai truy van.
+            if n_candidates > 0:
+                import numpy as _np
+
+                cands = []
+                for k in range(scores.shape[1]):
+                    col = scores[:, k]
+                    top = _np.argsort(-col)[:n_candidates]
+                    top = sorted(top, key=lambda i: pts[i])
+                    cands.append([{
+                        "frame_idx": int(fidx[i]),
+                        "pts_time": round(float(pts[i]), 3),
+                        "score": round(float(col[i]), 4),
+                        "la_lua_chon_dp": bool(filled[k] == i),
+                    } for i in top])
+                item["candidates"] = cands
+            out.append(item)
         out.sort(key=lambda x: -x["dp_score"])
         return out
 
     # ------------------------------------------------------------------
-    def _frames(self, query_en, video_ids, topk, ignore_gidx=None):
+    def _frames(self, query_en, video_ids, topk, ignore_gidx=None,
+                restrict_gidx=None):
         # Danh sach ignore den tu socket_app duoi dang khoa "video#frame";
         # cac client cu co the con gui chi so nguyen. Nhan ca hai.
         ignore = set()
@@ -423,7 +477,8 @@ class FusionEngine:
             # ("ao mua in hinh con gau"), nen frame duoc xep bang dung thu it
             # thong tin nhat.
             qs = pack_queries(query_en, self.encoder)
-            rows = self._frames_allocated(qs, video_ids, topk + n_ignore)
+            rows = self._frames_allocated(qs, video_ids, topk + n_ignore,
+                                          restrict_gidx=restrict_gidx)
         else:
             # Khong co encoder: van tra ve frame cua dung nhung video da duoc
             # xep hang boi cac kenh van ban. Chia deu han muc cho tung video --
@@ -460,7 +515,7 @@ class FusionEngine:
                 break
         return out
 
-    def _frames_allocated(self, query, video_ids, budget):
+    def _frames_allocated(self, query, video_ids, budget, restrict_gidx=None):
         """Chia han muc frame: mot phan BAO DAM theo video, phan con lai theo diem.
 
         Hai cach thuan tuy deu do va deu sai mot kieu:
@@ -480,6 +535,19 @@ class FusionEngine:
         hang luon nhin thay duoc, phan con lai van theo diem nhu cu.
         """
         mask = self.store.rows_for_videos(video_ids)
+        # Loc o cap FRAME, khong chi cap video.
+        #
+        # "Trong ket qua cu" ma chi gioi han theo VIDEO thi khong dung y nguoi
+        # dung: ho tim "nguoi dan ong ao xanh tren xich lo", duoc mot tap frame,
+        # roi go tiep "xe buyt mau cam" -- va mong nhan lai nhung frame co CA
+        # HAI. Gioi han theo video se tra ve frame co xe buyt o bat ky dau trong
+        # video do, mat han ve nguoi dan ong.
+        if restrict_gidx is not None:
+            keep = np.zeros(len(self.store.meta), dtype=bool)
+            idx = np.asarray(list(restrict_gidx), dtype=np.int64)
+            idx = idx[(idx >= 0) & (idx < len(keep))]
+            keep[idx] = True
+            mask = mask & keep
         if not mask.any():
             return []
         qs = [query] if isinstance(query, str) else list(query)
@@ -604,7 +672,19 @@ def pack_queries(query_en, encoder=None, budget=None):
             cur.append(p)
     if cur:
         out.append(". ".join(cur))
-    return out or [". ".join(parts)]
+
+    # Mot MENH DE don le van co the qua han muc -- va thuong xuyen nhu vay: ban
+    # dich may tra ve MOT dong duy nhat khong xuong dong, nen vong lap tren
+    # khong co cho nao de cat. Do duoc: chuoi 67 token di qua day nguyen ven roi
+    # bi tokenizer cat am tham. Giao not cho encoder.pack_text -- no cat theo
+    # ranh gioi CAU, va cuoi cung theo tu neu can.
+    final = []
+    for chunk in out:
+        if encoder.n_tokens(chunk) <= budget:
+            final.append(chunk)
+        else:
+            final.extend(encoder.pack_text(chunk, budget))
+    return final or [". ".join(parts)]
 
 
 def keyframe_url(video_id, frame_idx):

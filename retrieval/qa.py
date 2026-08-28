@@ -39,32 +39,81 @@ W_RELEVANCE = 1.0
 W_SHARPNESS = 0.35
 
 
-def build_prompt(question, ocr_texts, asr_texts=(), n_frames=1, window=None):
-    ocr_context = ", ".join(t for t in ocr_texts if t) or "khong co text nao tren hinh"
-    asr_context = " ".join(t.strip() for t in asr_texts if t and t.strip())
+def build_prompt(question, ocr_by_frame, asr_texts=(), timestamps=None,
+                 window=None):
+    """Prompt cho VLM.
 
-    if n_frames > 1:
-        head = (f"Ban dang xem {n_frames} khung hinh lien tiep cat ra tu mot doan "
-                f"video tin tuc tieng Viet")
+    ocr_by_frame: list[list[str]] -- OCR CUA TUNG khung hinh, dung thu tu thoi gian
+    timestamps:   list[float] | None -- moc thoi gian tung khung hinh
+
+    Bon dieu duoc sua so voi ban truoc, moi dieu deu co bang chung:
+
+    1. Viet CO DAU. Ban truoc viet khong dau nhung lai nhet ocr_context CO DAU
+       vao giua roi doi tra loi CO DAU -- ba tin hieu mau thuan trong cung mot
+       prompt. Khong dau la quy uoc cho log console, khong phai cho prompt.
+
+    2. DANH SO khung hinh va noi ro thu tu thoi gian. Cau hoi that cua BTC co
+       dang "con so hien thi CUOI CUNG tren can" -- khong danh so thi model
+       khong biet frame nao truoc frame nao sau.
+
+    3. OCR nhom THEO TUNG FRAME. Ban truoc gop phang bang ", ".join() nen mat
+       han thong tin chuoi nao thuoc frame nao -- dung thu quyet dinh cho cau
+       hoi kieu "cuoi cung".
+
+    4. Bo qua chu thuoc giao dien kenh. Bang chung tu log that: khi VLM hong,
+       phan OCR do ra toan la "HTV9, 06:53:27, Binh Duong: Triet xoa duong day
+       ca do bong da qua mang" -- ten dai, dong ho, dong chay chan man hinh.
+    """
+    ocr_by_frame = list(ocr_by_frame or [])
+    n = len(ocr_by_frame)
+    parts = []
+
+    if n > 1:
+        head = (f"Bạn đang xem {n} khung hình cắt ra từ một đoạn video tin tức "
+                f"tiếng Việt, sắp theo thứ tự thời gian tăng dần "
+                f"(khung hình 1 là sớm nhất, khung hình {n} là muộn nhất)")
     else:
-        head = "Ban dang xem mot khung hinh cat ra tu video tin tuc tieng Viet"
+        head = "Bạn đang xem một khung hình cắt ra từ video tin tức tiếng Việt"
     if window:
-        head += f" (khoang {window[0]:.1f}s - {window[1]:.1f}s)"
+        head += f", trong khoảng {window[0]:.1f}s - {window[1]:.1f}s của video"
+    parts.append(head + ".\n\n")
 
-    parts = [head + ".\n"]
-    parts.append(f"Text OCR doc duoc tren hinh (co the sai dau): [{ocr_context}]\n")
-    if asr_context:
-        parts.append(f"Loi noi trong doan nay (ASR, co the sai): \"{asr_context}\"\n")
-    parts.append(f"\nCau hoi: {question}\n\n")
+    parts.append("Text OCR đọc được trên hình (có thể sai chính tả, sai dấu, "
+                 "hoặc nhầm ký tự giống nhau):\n")
+    for i, texts in enumerate(ocr_by_frame, 1):
+        ctx = ", ".join(t for t in texts if t) or "không có text"
+        stamp = ""
+        if timestamps and i - 1 < len(timestamps):
+            stamp = f" ({timestamps[i - 1]:.1f}s)"
+        parts.append(f"  Khung hình {i}{stamp}: [{ctx}]\n")
+
+    asr = " ".join(t.strip() for t in asr_texts if t and t.strip())
+    if asr:
+        parts.append(f'\nLời nói trong đoạn này (ASR, có thể sai): "{asr}"\n')
+
+    parts.append(f"\nCâu hỏi: {question}\n\n")
     parts.append(
-        "Tra loi that ngan gon bang tieng Viet, chi dua tren nhung gi nhin thay "
-        "trong anh va hai nguon text tren. Neu khong du thong tin de tra loi "
-        "chac chan, tra loi dung hai chu: Khong ro."
+        "Hướng dẫn trả lời:\n"
+        "- Chỉ dựa vào hình ảnh và hai nguồn text ở trên. Không suy đoán từ "
+        "kiến thức bên ngoài.\n"
+        "- Khi các nguồn mâu thuẫn: với chữ và số hiện trên màn hình, tin vào "
+        "HÌNH ẢNH trước, OCR chỉ là gợi ý. Với tên riêng và địa danh, ASR "
+        "thường đáng tin hơn OCR.\n"
+        "- Bỏ qua chữ thuộc giao diện kênh: tên đài, dòng chạy chân màn hình, "
+        "đồng hồ, logo. Chỉ dùng chữ thuộc về cảnh đang được hỏi.\n"
+        "- Nếu câu hỏi nhắc tới thứ tự thời gian (đầu tiên, cuối cùng, sau đó), "
+        "dựa vào số thứ tự khung hình ở trên.\n"
+        "- Trả lời bằng tiếng Việt CÓ DẤU, dưới 100 ký tự. Chỉ đưa ra đáp án, "
+        "không nhắc lại câu hỏi, không giải thích, không dùng markdown. Hỏi số "
+        "thì trả số kèm đơn vị. Hỏi tên thì trả tên.\n"
+        "- Nếu suy ra được một đáp án hợp lý thì đưa ra, kể cả khi chưa chắc "
+        'chắn hoàn toàn. Chỉ trả lời "Không rõ" khi thật sự không có manh mối nào.'
     )
     return "".join(parts)
 
 
-def solve_qa(video_id, question, image_paths, ocr_texts, asr_texts=(), window=None):
+def solve_qa(video_id, question, image_paths, ocr_by_frame, asr_texts=(),
+             window=None, timestamps=None):
     """-> dict {answer, degraded, source, ...}. Khong bao gio nem exception.
 
     image_paths: mot duong dan hoac danh sach duong dan (theo thu tu thoi gian).
@@ -76,10 +125,14 @@ def solve_qa(video_id, question, image_paths, ocr_texts, asr_texts=(), window=No
         image_paths = [image_paths]
     images = [p for p in (image_paths or []) if p]
 
+    # Nhan ca dang cu (mot danh sach chuoi phang) de noi goi cu khong vo.
+    if ocr_by_frame and isinstance(ocr_by_frame[0], str):
+        ocr_by_frame = [list(ocr_by_frame)]
+
     client = get_client()
     result = client.generate(
-        build_prompt(question, ocr_texts, asr_texts,
-                     n_frames=len(images) or 1, window=window),
+        build_prompt(question, ocr_by_frame, asr_texts,
+                     timestamps=timestamps, window=window),
         images=images or None,
         tier=QA_TIER,
     )
@@ -95,7 +148,7 @@ def solve_qa(video_id, question, image_paths, ocr_texts, asr_texts=(), window=No
         }
 
     # --- che do khong-LLM -------------------------------------------------
-    joined = ", ".join(t for t in ocr_texts if t)
+    joined = ", ".join(t for fr in ocr_by_frame for t in fr if t)
     spoken = " ".join(t.strip() for t in asr_texts if t and t.strip())
     return {
         "answer": joined or spoken or None,

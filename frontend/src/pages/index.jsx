@@ -565,10 +565,17 @@ function Index() {
         return "";
       }
       if (d.degraded) {
+        const v = d.vlm || {};
         alert(
-          "VLM không dùng được — đây chỉ là text OCR/ASR đọc được quanh frame:\n" +
-            (d.answer || "(trống)")
+          "VLM không trả lời được nên KHÔNG có đáp án.\n\n" +
+            `Lý do: ${v.reason || "?"} — ${v.error || ""}\n\n` +
+            (d.cach_sua || "") +
+            "\n\nPhần text OCR/ASR đọc được (chỉ để tham khảo, KHÔNG phải câu trả lời) " +
+            "đã được bỏ qua."
         );
+        // KHÔNG điền text OCR vào ô đáp án: nó không phải câu trả lời, và điền
+        // vào thì rất dễ bị nộp nhầm.
+        return "";
       }
       return d.answer || "";
     } catch (e) {
@@ -1229,8 +1236,18 @@ function Index() {
               </span>
             )}
             {searchMeta.query && searchMeta.query.query_en && (
-              <span className="chip" title="Chuỗi thật sự gửi cho SigLIP">
-                {searchMeta.query.query_en.split("\n")[0].slice(0, 70)}
+              // Hiện TOÀN BỘ chuỗi gửi cho SigLIP. Trước đây chỉ hiện mệnh đề
+              // đầu tiên (`split("\n")[0]`) nên khi LLM tách 4 mệnh đề, người
+              // dùng thấy mỗi "cars wading through water" và tưởng phần còn lại
+              // bị vứt — thực ra cả bốn đều được gửi.
+              <span
+                className="chip max-w-[46ch] truncate"
+                title={`Gửi cho SigLIP:\n${searchMeta.query.query_en}`}
+              >
+                {searchMeta.query.query_en.split("\n").length > 1
+                  ? `${searchMeta.query.query_en.split("\n").length} mệnh đề: `
+                  : ""}
+                {searchMeta.query.query_en.replace(/\n/g, " · ")}
               </span>
             )}
             {Object.entries(searchMeta.errors || {}).map(([k, v]) => (
