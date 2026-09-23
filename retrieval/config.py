@@ -149,6 +149,8 @@ class FusionConfig:
     # nop khong nen bi gioi han boi thu nguoi dung dang nhin thay. Do: pool 500
     # -> Final 0.6000, pool 3000 -> 0.6286 (Q5 lot vao o hang 87).
     autofill_pool_topk: int = 3000
+    # Lambda cho thuat toan Deferred MMR (can bang giua Relevance va Diversity)
+    autofill_mmr_lambda: float = 0.5
     # --- Xen frame GIUA cac keyframe ---------------------------------------
     # Bo keyframe cua ta thua thot ngang voi do hep cua dap an: khoang cach hai
     # keyframe trung vi 75 frame, do rong khoang dap an cung 75. Nen moi khoang

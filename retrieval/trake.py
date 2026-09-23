@@ -44,8 +44,8 @@ da bi chinh nguong lay mau cat cut. Moi quan he thoi gian o day deu tinh bang
 pts_time.
 """
 
-from collections import deque
-from typing import List, Optional, Sequence, Tuple
+import heapq
+from typing import List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
@@ -68,8 +68,10 @@ def dp_alignment(
     gamma: float = 1.0,
     min_gap: float = 0.0,
     candidates: Optional[Sequence[Sequence[int]]] = None,
-) -> Tuple[List[int], float]:
-    """Tra ve (path, max_score).
+    k_best: int = 1,
+) -> Union[Tuple[List[int], float], Tuple[List[List[int]], List[float]]]:
+    """Tra ve (path, max_score) neu k_best == 1, 
+    hoac (paths, max_scores) la danh sach K-best neu k_best > 1.
 
     path co dung `num_events` phan tu: path[k] la chi so frame khop su kien k,
     hoac -1 neu su kien do bi bo qua.
@@ -81,6 +83,7 @@ def dp_alignment(
     min_gap       khoang thoi gian TOI THIEU giua hai su kien lien tiep. 0 =
                   chi doi hoi frame sau muon hon frame truoc.
     candidates    tuy chon: candidates[k] la tap frame duoc phep khop su kien k
+    k_best        so luong duong di tot nhat tra ve
     """
     t = np.asarray(pts_times, dtype=np.float64)
     S = np.asarray(event_scores, dtype=np.float64)
@@ -88,7 +91,7 @@ def dp_alignment(
         raise ValueError(f"event_scores phai la ma tran 2 chieu, dang {S.shape}")
     n, K = S.shape
     if n == 0 or K == 0:
-        return [], NEG
+        return ([], NEG) if k_best == 1 else ([], [])
     if len(t) != n:
         raise ValueError(f"pts_times ({len(t)}) khong khop so frame ({n})")
     if np.any(np.diff(t) < 0):
@@ -104,103 +107,129 @@ def dp_alignment(
             if idx.size:
                 allowed[k][idx] = True
 
-    # Trang thai = "frame KHOP GAN NHAT", khong phai "frame hien tai". Bo qua
-    # mot su kien KHONG lam trang thai tien len -- do la mau chot de bo qua
-    # nhieu su kien lien tiep roi van khop tiep vao frame bat ky.
-    #
-    # Rieng trang thai "chua khop gi" khong gan voi frame nao, nen giu rieng
-    # thanh mot so vo huong: tu do co the khop vao BAT KY frame nao (ke ca frame
-    # dau video), khong bi rang buoc delta.
-    dp = np.full((n, K + 1), NEG, dtype=np.float64)
-    par = np.full((n, K + 1), -1, dtype=np.int64)      # frame khop truoc do
-    skipped = np.zeros((n, K + 1), dtype=bool)         # su kien k co bi bo qua?
-    from_none = np.zeros((n, K + 1), dtype=bool)       # tien nhiem la trang thai rong
+    # Trang thai DP K-Best: [frame, event, rank]
+    dp = np.full((n, K + 1, k_best), NEG, dtype=np.float64)
+    par = np.full((n, K + 1, k_best), -1, dtype=np.int64)      
+    par_b = np.full((n, K + 1, k_best), -1, dtype=np.int64)    
+    skipped = np.zeros((n, K + 1, k_best), dtype=bool)         
+    from_none = np.zeros((n, K + 1, k_best), dtype=bool)       
 
-    none_prev = 0.0        # chua khop su kien nao, chua ton phat nao
+    none_prev = 0.0        
 
     for k in range(1, K + 1):
-        prev = dp[:, k - 1].copy()
+        prev = dp[:, k - 1, :].copy()
 
-        # --- khop su kien k ------------------------------------------------
-        # max{prev[j] : t_i - delta <= t_j <= t_i - min_gap, j < i}
-        # Ca hai bien deu don dieu theo i -> deque don dieu, O(1) khau hao.
-        dq = deque()
-        p = 0                      # con tro nap: frame da du xa ve truoc
+        # Heap Max voi Lazy Deletion de tim K phan tu tot nhat trong cua so
+        heap = []
+        p = 0                      
+        
         for i in range(n):
+            # Nap frame moi vao heap neu thoa man min_gap
             while p < i and t[p] <= t[i] - min_gap:
-                if prev[p] != NEG:
-                    while dq and prev[dq[-1]] <= prev[p]:
-                        dq.pop()
-                    dq.append(p)
+                for b in range(k_best):
+                    score = prev[p, b]
+                    if score != NEG:
+                        heapq.heappush(heap, (-score, p, b))
                 p += 1
-            while dq and t[dq[0]] < t[i] - delta:
-                dq.popleft()
 
-            if allowed is not None and not allowed[k - 1][i]:
-                continue
+            matched_cands = []
+            
+            # 1. Khop tu trang thai rong (none_prev)
+            if none_prev != NEG and (allowed is None or allowed[k - 1][i]):
+                matched_cands.append((none_prev + S[i, k - 1], -1, -1, True, False))
 
-            best_prev, best_j, via_none = NEG, -1, False
-            if dq and prev[dq[0]] != NEG:
-                best_prev, best_j = prev[dq[0]], dq[0]
-            # Tu trang thai rong: khong doi hoi frame som hon, khong rang buoc delta.
-            if none_prev > best_prev:
-                best_prev, best_j, via_none = none_prev, -1, True
+            # 2. Khop tu cac frame truoc do (qua heap)
+            if allowed is None or allowed[k - 1][i]:
+                popped = []
+                while heap and len(popped) < k_best:
+                    neg_score, j, b = heapq.heappop(heap)
+                    # Kiem tra lazy deletion
+                    if t[j] >= t[i] - delta:
+                        popped.append((neg_score, j, b))
+                        matched_cands.append((-neg_score + S[i, k - 1], j, b, False, False))
+                # Day tro lai vao heap cho cac frame sau
+                for item in popped:
+                    heapq.heappush(heap, item)
 
-            if best_prev == NEG:
-                continue
-            val = S[i, k - 1] + best_prev
-            if val > dp[i, k]:
-                dp[i, k] = val
-                par[i, k] = best_j
-                skipped[i, k] = False
-                from_none[i, k] = via_none
+            # 3. Bo qua su kien k (lay diem tu k-1 o cung frame i)
+            skipped_cands = []
+            for b in range(k_best):
+                if prev[i, b] != NEG:
+                    skipped_cands.append((prev[i, b] - gamma, i, b, False, True))
 
-        # --- bo qua su kien k: giu nguyen frame khop gan nhat ---------------
-        for i in range(n):
-            if prev[i] == NEG:
-                continue
-            val = prev[i] - gamma
-            if val > dp[i, k]:
-                dp[i, k] = val
-                par[i, k] = i
-                skipped[i, k] = True
-                from_none[i, k] = False
+            # Gop tat ca va giu Top-K
+            all_cands = matched_cands + skipped_cands
+            all_cands.sort(key=lambda x: x[0], reverse=True)
+            
+            for b in range(min(k_best, len(all_cands))):
+                sc, pj, pb, vn, sk = all_cands[b]
+                dp[i, k, b] = sc
+                par[i, k, b] = pj
+                par_b[i, k, b] = pb
+                from_none[i, k, b] = vn
+                skipped[i, k, b] = sk
 
-        none_prev -= gamma      # bo qua ca su kien k khi chua khop gi
+        none_prev -= gamma
 
-    # Ket qua tot nhat: hoac ket thuc o mot frame, hoac bo qua sach moi su kien.
-    best_end = int(np.argmax(dp[:, K])) if n else -1
-    best_frame_score = float(dp[best_end, K]) if n else NEG
-
-    if none_prev >= best_frame_score:
-        # Bo qua toan bo -- van la mot loi giai hop le, chi la rat te.
-        if not np.isfinite(none_prev):
-            return [], NEG
-        return [-1] * K, float(none_prev)
-
-    if not np.isfinite(best_frame_score):
-        return [], NEG
-
-    # --- lan nguoc ------------------------------------------------------
-    path: List[int] = []
-    i, k = best_end, K
-    while k >= 1:
-        if skipped[i, k]:
-            path.append(-1)
-            k -= 1
-            continue
-        path.append(int(i))
-        if from_none[i, k]:
-            # Tien nhiem la trang thai rong -> moi su kien con lai deu bi bo qua.
-            k -= 1
-            while k >= 1:
-                path.append(-1)
-                k -= 1
+    # --- Lan nguoc DP de lay K_best duong di ---
+    terminal_cands = []
+    if none_prev != NEG:
+        terminal_cands.append((none_prev, -1, -1))
+        
+    for i in range(n):
+        for b in range(k_best):
+            if dp[i, K, b] != NEG:
+                terminal_cands.append((dp[i, K, b], i, b))
+                
+    terminal_cands.sort(key=lambda x: x[0], reverse=True)
+    
+    final_paths = []
+    final_scores = []
+    seen_paths = set()
+    
+    for cand_score, cand_i, cand_b in terminal_cands:
+        if len(final_paths) >= k_best:
             break
-        i = int(par[i, k])
-        k -= 1
-    path.reverse()
-    return path, best_frame_score
+            
+        if cand_i == -1:
+            path = [-1] * K
+        else:
+            path = []
+            curr_i, curr_k, curr_b = cand_i, K, cand_b
+            
+            while curr_k >= 1:
+                if skipped[curr_i, curr_k, curr_b]:
+                    path.append(-1)
+                    nxt_i = par[curr_i, curr_k, curr_b]
+                    nxt_b = par_b[curr_i, curr_k, curr_b]
+                    curr_i, curr_b, curr_k = nxt_i, nxt_b, curr_k - 1
+                else:
+                    path.append(int(curr_i))
+                    if from_none[curr_i, curr_k, curr_b]:
+                        curr_k -= 1
+                        while curr_k >= 1:
+                            path.append(-1)
+                            curr_k -= 1
+                        break
+                    nxt_i = par[curr_i, curr_k, curr_b]
+                    nxt_b = par_b[curr_i, curr_k, curr_b]
+                    curr_i, curr_b, curr_k = nxt_i, nxt_b, curr_k - 1
+            
+            path.reverse()
+            
+        path_tuple = tuple(path)
+        if path_tuple not in seen_paths:
+            seen_paths.add(path_tuple)
+            final_paths.append(list(path))
+            final_scores.append(float(cand_score))
+            
+    if not final_paths:
+        final_paths = [[]]
+        final_scores = [NEG]
+        
+    if k_best == 1:
+        return final_paths[0], final_scores[0]
+    return final_paths, final_scores
 
 
 # ---------------------------------------------------------------------------
