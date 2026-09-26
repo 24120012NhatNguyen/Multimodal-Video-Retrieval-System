@@ -69,6 +69,13 @@ LLM_COOLDOWN_SEC = float(os.environ.get("LLM_COOLDOWN_SEC", "60"))
 
 @dataclass
 class FusionConfig:
+    # --- Ablation Feature Flags ------------------------------------------
+    use_llm_plan: bool = True
+    use_text_index: bool = True
+    fusion_method: str = "rrf"          # 'rrf' or 'z-score'
+    dp_method: str = "1-best"           # '1-best' or 'k-best'
+    autofill_method: str = "deferred_mmr" # 'old' or 'deferred_mmr'
+
     # --- Viec 1: trong so RRF (mac dinh 1.0 cho tat ca) -------------------
     weights: dict = field(default_factory=lambda: {
         "siglip": 1.0,

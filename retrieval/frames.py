@@ -99,6 +99,19 @@ class KeyframeImages:
         if os.path.exists(out):
             return out
 
+        # Fallback: check if the keyframe is saved as 3-digit or 6-digit sequence number n.jpg
+        df = self.store.frames_of(video_id)
+        if not df.empty:
+            hit = df[df["frame_idx"] == int(frame_idx)]
+            if not hit.empty:
+                n_val = hit.iloc[0]["n"]
+                if n_val is not None:
+                    n_val = int(n_val)
+                    for fmt in (f"{n_val:03d}.jpg", f"{n_val:06d}.jpg"):
+                        alt_out = os.path.join(self.root, video_id, fmt)
+                        if os.path.exists(alt_out):
+                            return alt_out
+
         # Truot cache -> nhieu kha nang ca video nay sap bi hoi het. Lam am nen.
         if warm:
             self.warm_async(video_id)

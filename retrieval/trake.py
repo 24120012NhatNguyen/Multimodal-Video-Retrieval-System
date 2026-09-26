@@ -61,6 +61,9 @@ STATS_STRIDE = 37
 DEFAULT_TAU = 2.0
 
 
+import time
+latency_stats = {'1-best': [], 'k-best': []}
+
 def dp_alignment(
     pts_times: Sequence[float],
     event_scores: np.ndarray,
@@ -72,25 +75,17 @@ def dp_alignment(
 ) -> Union[Tuple[List[int], float], Tuple[List[List[int]], List[float]]]:
     """Tra ve (path, max_score) neu k_best == 1, 
     hoac (paths, max_scores) la danh sach K-best neu k_best > 1.
-
-    path co dung `num_events` phan tu: path[k] la chi so frame khop su kien k,
-    hoac -1 neu su kien do bi bo qua.
-
-    pts_times     thoi gian cua tung frame, PHAI tang dan
-    event_scores  (num_frames, num_events) -- nen la z-score, xem event_stats
-    delta         khoang thoi gian TOI DA giua hai su kien lien tiep
-    gamma         diem phat cho moi su kien bi bo qua (don vi: do lech chuan)
-    min_gap       khoang thoi gian TOI THIEU giua hai su kien lien tiep. 0 =
-                  chi doi hoi frame sau muon hon frame truoc.
-    candidates    tuy chon: candidates[k] la tap frame duoc phep khop su kien k
-    k_best        so luong duong di tot nhat tra ve
     """
+    start_time = time.perf_counter()
+    
     t = np.asarray(pts_times, dtype=np.float64)
     S = np.asarray(event_scores, dtype=np.float64)
     if S.ndim != 2:
         raise ValueError(f"event_scores phai la ma tran 2 chieu, dang {S.shape}")
     n, K = S.shape
     if n == 0 or K == 0:
+        duration = (time.perf_counter() - start_time) * 1000
+        latency_stats['1-best' if k_best == 1 else 'k-best'].append(duration)
         return ([], NEG) if k_best == 1 else ([], [])
     if len(t) != n:
         raise ValueError(f"pts_times ({len(t)}) khong khop so frame ({n})")
@@ -227,6 +222,9 @@ def dp_alignment(
         final_paths = [[]]
         final_scores = [NEG]
         
+    duration = (time.perf_counter() - start_time) * 1000
+    latency_stats['1-best' if k_best == 1 else 'k-best'].append(duration)
+    
     if k_best == 1:
         return final_paths[0], final_scores[0]
     return final_paths, final_scores

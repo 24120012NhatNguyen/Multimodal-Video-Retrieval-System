@@ -1,0 +1,342 @@
+MetaIndex[meta]: 873 video, 3324 tu, do dai trung binh 279
+MetaIndex[meta_fold]: 873 video, 2045 tu, do dai trung binh 279
+MetaIndex[asr]: 859 video, 10179 tu, do dai trung binh 1520
+MetaIndex[ocr]: 873 video, 78320 tu, do dai trung binh 4597
+2026-09-04 20:08:06 | INFO     | httpx | HTTP Request: HEAD https://huggingface.co/google/siglip-so400m-patch14-384/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-09-04 20:08:06 | INFO     | httpx | HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/google/siglip-so400m-patch14-384/9fdffc58afc957d1a03a25b10dba0329ab15c2a3/config.json "HTTP/1.1 200 OK"
+[transformers] Model config: bos_token_id must be `None` or an integer within the vocabulary (between 0 and 31999), got 49406. This may result in unexpected behavior.
+[transformers] Model config: eos_token_id must be `None` or an integer within the vocabulary (between 0 and 31999), got 49407. This may result in unexpected behavior.
+2026-09-04 20:08:06 | INFO     | httpx | HTTP Request: HEAD https://huggingface.co/google/siglip-so400m-patch14-384/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
+2026-09-04 20:08:06 | INFO     | httpx | HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/google/siglip-so400m-patch14-384/9fdffc58afc957d1a03a25b10dba0329ab15c2a3/tokenizer_config.json "HTTP/1.1 200 OK"
+2026-09-04 20:08:07 | INFO     | httpx | HTTP Request: GET https://huggingface.co/api/models/google/siglip-so400m-patch14-384/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-09-04 20:08:07 | INFO     | httpx | HTTP Request: GET https://huggingface.co/api/models/google/siglip-so400m-patch14-384/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+2026-09-04 20:08:07 | INFO     | httpx | HTTP Request: HEAD https://huggingface.co/google/siglip-so400m-patch14-384/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-09-04 20:08:07 | INFO     | httpx | HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/google/siglip-so400m-patch14-384/9fdffc58afc957d1a03a25b10dba0329ab15c2a3/config.json "HTTP/1.1 200 OK"
+2026-09-04 20:08:08 | INFO     | httpx | HTTP Request: HEAD https://huggingface.co/google/siglip-so400m-patch14-384/resolve/main/model.safetensors "HTTP/1.1 302 Found"
+Loading weights:   0%|          | 0/438 [00:00<?, ?it/s]Loading weights: 100%|██████████| 438/438 [00:00<00:00, 6465.61it/s]
+[transformers] [1mSiglipTextModel LOAD REPORT[0m from: google/siglip-so400m-patch14-384
+Key                                                            | Status     |  | 
+---------------------------------------------------------------+------------+--+-
+vision_model.encoder.layers.{0...26}.self_attn.q_proj.bias     | UNEXPECTED |  | 
+vision_model.encoder.layers.{0...26}.self_attn.k_proj.bias     | UNEXPECTED |  | 
+vision_model.encoder.layers.{0...26}.self_attn.k_proj.weight   | UNEXPECTED |  | 
+vision_model.encoder.layers.{0...26}.mlp.fc2.bias              | UNEXPECTED |  | 
+vision_model.encoder.layers.{0...26}.layer_norm2.weight        | UNEXPECTED |  | 
+vision_model.encoder.layers.{0...26}.self_attn.out_proj.bias   | UNEXPECTED |  | 
+vision_model.encoder.layers.{0...26}.layer_norm1.weight        | UNEXPECTED |  | 
+vision_model.encoder.layers.{0...26}.self_attn.q_proj.weight   | UNEXPECTED |  | 
+vision_model.encoder.layers.{0...26}.self_attn.v_proj.weight   | UNEXPECTED |  | 
+vision_model.encoder.layers.{0...26}.mlp.fc2.weight            | UNEXPECTED |  | 
+vision_model.encoder.layers.{0...26}.mlp.fc1.bias              | UNEXPECTED |  | 
+vision_model.encoder.layers.{0...26}.self_attn.v_proj.bias     | UNEXPECTED |  | 
+logit_scale                                                    | UNEXPECTED |  | 
+vision_model.encoder.layers.{0...26}.self_attn.out_proj.weight | UNEXPECTED |  | 
+vision_model.encoder.layers.{0...26}.mlp.fc1.weight            | UNEXPECTED |  | 
+vision_model.head.layernorm.weight                             | UNEXPECTED |  | 
+vision_model.encoder.layers.{0...26}.layer_norm1.bias          | UNEXPECTED |  | 
+vision_model.head.mlp.fc1.bias                                 | UNEXPECTED |  | 
+vision_model.encoder.layers.{0...26}.layer_norm2.bias          | UNEXPECTED |  | 
+vision_model.head.attention.in_proj_bias                       | UNEXPECTED |  | 
+vision_model.post_layernorm.bias                               | UNEXPECTED |  | 
+vision_model.embeddings.patch_embedding.weight                 | UNEXPECTED |  | 
+vision_model.head.probe                                        | UNEXPECTED |  | 
+vision_model.head.layernorm.bias                               | UNEXPECTED |  | 
+vision_model.post_layernorm.weight                             | UNEXPECTED |  | 
+vision_model.head.attention.out_proj.weight                    | UNEXPECTED |  | 
+vision_model.embeddings.position_embedding.weight              | UNEXPECTED |  | 
+vision_model.head.attention.out_proj.bias                      | UNEXPECTED |  | 
+vision_model.head.mlp.fc2.bias                                 | UNEXPECTED |  | 
+vision_model.head.mlp.fc2.weight                               | UNEXPECTED |  | 
+vision_model.head.mlp.fc1.weight                               | UNEXPECTED |  | 
+vision_model.embeddings.patch_embedding.bias                   | UNEXPECTED |  | 
+logit_bias                                                     | UNEXPECTED |  | 
+vision_model.head.attention.in_proj_weight                     | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+2026-09-04 20:08:11 | INFO     | app | SigLIP san sang: 1152 chieu tren mps
+2026-09-04 20:08:11 | INFO     | app | Index object: 545 lop, 2054901 detection (data/artifacts/object_index.npz)
+2026-09-04 20:08:11 | INFO     | app | Fusion engine initialized successfully.
+INFO:     Started server process [6488]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+INFO:     127.0.0.1:50964 - "OPTIONS /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50964 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50966 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50978 - "OPTIONS /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50979 - "OPTIONS /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50979 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50978 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51038 - "OPTIONS /imgsearch?imgid=L26_V424%235580&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51038 - "GET /imgsearch?imgid=L26_V424%235580&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51109 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51040 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51040 - "OPTIONS /relatedimg?imgid=L26_V431%235016 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51109 - "GET /relatedimg?imgid=L26_V431%235016 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51127 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51126 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51127 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51145 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 20:12:36 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:51144 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51229 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 20:14:06 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:51229 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51228 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51345 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51348 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 20:17:04 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:51345 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51384 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51387 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51384 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51438 - "OPTIONS /imgsearch?imgid=L26_V421%234044&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51438 - "GET /imgsearch?imgid=L26_V421%234044&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51490 - "OPTIONS /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51490 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51492 - "OPTIONS /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51492 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51499 - "OPTIONS /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51505 - "OPTIONS /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51507 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 20:23:25 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:51499 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51525 - "OPTIONS /relatedimg?imgid=L25_V075%231740 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51525 - "GET /relatedimg?imgid=L25_V075%231740 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51527 - "OPTIONS /relatedimg?imgid=L25_V075%232280 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51527 - "GET /relatedimg?imgid=L25_V075%232280 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51535 - "OPTIONS /relatedimg?imgid=L25_V075%231956 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51535 - "GET /relatedimg?imgid=L25_V075%231956 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51590 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51599 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51602 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 20:26:53 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:51599 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51631 - "OPTIONS /relatedimg?imgid=L22_V024%2320820 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51631 - "GET /relatedimg?imgid=L22_V024%2320820 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51633 - "OPTIONS /imgsearch?imgid=L22_V024%2320820&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51633 - "GET /imgsearch?imgid=L22_V024%2320820&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51641 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51665 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51668 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 20:28:33 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:51665 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51699 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51702 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51699 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51814 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 20:31:55 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:51814 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51813 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51833 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51832 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51833 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51880 - "OPTIONS /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51880 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51882 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51892 - "OPTIONS /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51894 - "OPTIONS /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51897 - "OPTIONS /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51897 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51892 - "POST /translate HTTP/1.1" 200 OK
+2026-09-04 20:33:23 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:51894 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51936 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51956 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 20:35:09 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:51956 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51955 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52015 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52025 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52029 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52032 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 20:36:45 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:52029 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52047 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52163 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52158 - "POST /translate HTTP/1.1" 200 OK
+2026-09-04 20:38:00 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:52162 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52210 - "OPTIONS /imgsearch?imgid=L29_V014%2318624&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52210 - "GET /imgsearch?imgid=L29_V014%2318624&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52212 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52317 - "OPTIONS /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52317 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52346 - "OPTIONS /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52346 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52346 - "OPTIONS /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52348 - "OPTIONS /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52348 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 20:44:23 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:52346 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52417 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52421 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 20:46:34 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:52417 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52478 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52488 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52492 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 20:49:03 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:52492 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52491 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52529 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52524 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52528 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52584 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52596 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 20:51:48 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:52596 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52595 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52830 - "OPTIONS /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52831 - "OPTIONS /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52831 - "OPTIONS /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52833 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52831 - "POST /translate HTTP/1.1" 200 OK
+2026-09-04 21:05:55 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:52830 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52835 - "OPTIONS /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52835 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52880 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52887 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52880 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52907 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52920 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52923 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 21:08:01 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:52920 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52950 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52973 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 21:10:10 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:52972 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52968 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52987 - "OPTIONS /imgsearch?imgid=L21_V005%2323730&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52987 - "GET /imgsearch?imgid=L21_V005%2323730&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52989 - "OPTIONS /imgsearch?imgid=L21_V005%2324420&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52989 - "GET /imgsearch?imgid=L21_V005%2324420&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52989 - "OPTIONS /getvideoshot?imgid=L21_V005 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53017 - "GET /getvideoshot?imgid=L21_V005 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53076 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53086 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53089 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 21:11:27 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:53086 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53135 - "OPTIONS /imgsearch?imgid=L26_V029%235640&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53135 - "GET /imgsearch?imgid=L26_V029%235640&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53137 - "OPTIONS /imgsearch?imgid=L26_V464%236312&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53137 - "GET /imgsearch?imgid=L26_V464%236312&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53156 - "OPTIONS /imgsearch?imgid=L26_V395%235868&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53156 - "GET /imgsearch?imgid=L26_V395%235868&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53172 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53201 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53196 - "POST /translate HTTP/1.1" 200 OK
+2026-09-04 21:13:14 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:53200 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53255 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53272 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53275 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 21:15:05 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:53272 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53296 - "OPTIONS /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53296 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53298 - "OPTIONS /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53298 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53298 - "OPTIONS /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53308 - "OPTIONS /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53308 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 21:16:54 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:53298 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53357 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53374 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53369 - "POST /translate HTTP/1.1" 200 OK
+2026-09-04 21:18:17 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:53373 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53418 - "OPTIONS /imgsearch?imgid=L23_V004%236420&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53418 - "GET /imgsearch?imgid=L23_V004%236420&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53475 - "OPTIONS /imgsearch?imgid=L23_V005%233612&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53475 - "GET /imgsearch?imgid=L23_V005%233612&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53477 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53522 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53525 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 21:23:23 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:53522 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53541 - "OPTIONS /imgsearch?imgid=L30_V023%233732&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53541 - "GET /imgsearch?imgid=L30_V023%233732&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53543 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53572 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 21:24:32 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:53572 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53571 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53661 - "OPTIONS /getvideoshot?imgid=L25_V052 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53661 - "GET /getvideoshot?imgid=L25_V052 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53663 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53680 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 21:26:03 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:53680 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53679 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53725 - "OPTIONS /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53725 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53727 - "OPTIONS /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53736 - "OPTIONS /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53736 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53736 - "OPTIONS /translate HTTP/1.1" 200 OK
+2026-09-04 21:27:21 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:53738 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53727 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53771 - "OPTIONS /imgsearch?imgid=L28_V010%2313116&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53771 - "GET /imgsearch?imgid=L28_V010%2313116&k=500 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53816 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 21:28:52 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:53773 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53816 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53835 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53894 - "OPTIONS /trake HTTP/1.1" 200 OK
+2026-09-04 21:34:36 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:53894 - "POST /trake HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53969 - "POST /autofill HTTP/1.1" 200 OK
+2026-09-04 21:36:43 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:53975 - "POST /trake HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54021 - "OPTIONS /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54021 - "POST /autofill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54069 - "OPTIONS /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54069 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54069 - "OPTIONS /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54071 - "OPTIONS /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54071 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 21:44:39 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:54069 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54074 - "OPTIONS /relatedimg?imgid=L25_V016%233744 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54076 - "GET /relatedimg?imgid=L25_V016%233744 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54115 - "OPTIONS /relatedimg?imgid=L25_V016%2323544 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54115 - "GET /relatedimg?imgid=L25_V016%2323544 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54117 - "OPTIONS /relatedimg?imgid=L25_V016%2324036 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54117 - "GET /relatedimg?imgid=L25_V016%2324036 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54117 - "OPTIONS /relatedimg?imgid=L25_V016%2327312 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54123 - "GET /relatedimg?imgid=L25_V016%2327312 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54123 - "OPTIONS /relatedimg?imgid=L25_V016%234632 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54117 - "GET /relatedimg?imgid=L25_V016%234632 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54117 - "OPTIONS /relatedimg?imgid=L25_V016%2322836 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54123 - "GET /relatedimg?imgid=L25_V016%2322836 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54153 - "OPTIONS /relatedimg?imgid=L25_V016%2320760 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54153 - "GET /relatedimg?imgid=L25_V016%2320760 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54301 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54296 - "POST /translate HTTP/1.1" 200 OK
+2026-09-04 21:51:08 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:54300 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54328 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54331 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54334 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54331 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54330 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54324 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54333 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54328 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54365 - "POST /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54364 - "POST /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54898 - "OPTIONS /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54898 - "POST /translate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54898 - "OPTIONS /textsearch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54900 - "OPTIONS /getrec HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54900 - "POST /getrec HTTP/1.1" 200 OK
+2026-09-04 21:57:09 | INFO     | httpx2 | HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+INFO:     127.0.0.1:54898 - "POST /textsearch HTTP/1.1" 200 OK

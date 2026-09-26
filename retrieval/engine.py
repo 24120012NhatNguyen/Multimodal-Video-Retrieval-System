@@ -10,7 +10,7 @@ luyen chu yeu tieng Anh va khong hieu danh tu rieng tieng Viet.
 
 import numpy as np
 
-from fusion import explain, frames_in_videos, rrf, siglip_video_rank
+from fusion import explain, frames_in_videos, rrf, siglip_video_rank, z_score_fusion
 from retrieval.trake import (dp_alignment, event_stats, events_to_scores,
                              fill_skipped)
 from retrieval.config import FusionConfig
@@ -115,19 +115,25 @@ def gate_by_score(lst, ratio=SCORE_GATE_RATIO, floor=SCORE_GATE_FLOOR):
     return [(v, s) for v, s in lst if s >= ratio * top]
 
 
-def merge_by_source(lists):
-    """{ten_kenh: [(vid, diem)]} -> {ten_nhom: [(vid, -thu_hang)]}.
-
-    Trong mot nhom, video lay THU HANG TOT NHAT ma no dat duoc o bat ky bien
-    the nao. Nho vay doi bo tach tu (co dau / khong dau) khong lam tang so phieu.
-    """
+def merge_by_source(lists, fusion_method="rrf"):
+    """{ten_kenh: [(vid, diem)]} -> {ten_nhom: [(vid, -thu_hang)]}."""
     best = {}
     for name, lst in lists.items():
         g = CHANNEL_GROUP.get(name, name)
         d = best.setdefault(g, {})
-        for rank, (vid, _) in enumerate(lst):
-            if vid not in d or rank < d[vid]:
-                d[vid] = rank
+        for rank, (vid, sc) in enumerate(lst):
+            if fusion_method == "z-score":
+                if vid not in d or sc > d[vid]:
+                    d[vid] = sc
+            else:
+                if vid not in d or rank < d[vid]:
+                    d[vid] = rank
+    
+    if fusion_method == "z-score":
+        return {
+            g: [(vid, sc) for vid, sc in sorted(d.items(), key=lambda kv: -kv[1])]
+            for g, d in best.items()
+        }
     return {
         g: [(vid, -rank) for vid, rank in sorted(d.items(), key=lambda kv: kv[1])]
         for g, d in best.items()
@@ -186,7 +192,7 @@ class FusionEngine:
                 lists["_errors"]["siglip"] = f"{type(e).__name__}: {e}"
 
         # --- cac kenh BM25: TIENG VIET ------------------------------------
-        if query_vi and query_vi.strip():
+        if query_vi and query_vi.strip() and getattr(self.cfg, "use_text_index", True):
             for name in VI_CHANNELS:
                 if wanted is not None and name not in wanted:
                     continue
@@ -216,7 +222,7 @@ class FusionEngine:
                         del gated[name]
 
         # --- gop kenh cung nguon roi moi hop nhat ---------------------------
-        groups = merge_by_source(gated)
+        groups = merge_by_source(gated, fusion_method=getattr(self.cfg, "fusion_method", "rrf"))
 
         w = dict(WEIGHTS_BY_KIND.get(kind or "", {}))
         if not w:
@@ -245,7 +251,10 @@ class FusionEngine:
                 "da lui ve trong so deu tren cac kenh con lai: "
                 + ", ".join(sorted(groups)))
 
-        fused = rrf(groups, k=self.cfg.rrf_k, weights=w)
+        if getattr(self.cfg, "fusion_method", "rrf") == "z-score":
+            fused = z_score_fusion(groups, weights=w)
+        else:
+            fused = rrf(groups, k=self.cfg.rrf_k, weights=w)
         self._last_weights = w
         # `lists` giu nguyen (chua cong) de explain() con noi duoc thu hang goc
         # cua video o TUNG kenh -- do la thu nguoi dung doc.
@@ -383,8 +392,14 @@ class FusionEngine:
                 normalize=normalize, tau=tau)
             if not pts:
                 continue
-            path, score = dp_alignment(pts, scores, delta=delta, gamma=gamma,
-                                       min_gap=min_gap)
+            if getattr(self.cfg, "dp_method", "1-best") == "k-best":
+                paths, score_list = dp_alignment(pts, scores, delta=delta, gamma=gamma,
+                                                 min_gap=min_gap, k_best=5)
+                path = paths[0] if paths else []
+                score = score_list[0] if score_list else NEG
+            else:
+                path, score = dp_alignment(pts, scores, delta=delta, gamma=gamma,
+                                           min_gap=min_gap)
             if not path:
                 continue
             # Bai TRAKE doi mot frame cho MOI su kien -- bo qua la cong cu cham
@@ -409,6 +424,10 @@ class FusionEngine:
                     "matched": matched,
                     "n_frame": len(pts),
                     "n_skipped": n_skip}
+            
+            if getattr(self.cfg, "dp_method", "1-best") == "k-best":
+                item["k_best_paths"] = paths
+                item["k_best_filled"] = [[int(fidx[idx]) for idx in fill_skipped(p, pts, scores, delta)] for p in paths]
 
             # --- Ung vien cho TUNG su kien ------------------------------------
             # DP tra ve DUNG MOT frame moi su kien, va khi hai su kien nhin gan

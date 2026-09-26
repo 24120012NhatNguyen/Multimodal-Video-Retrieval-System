@@ -721,12 +721,8 @@ async def export_kis(questionName: str = Query(...)):
                 ensure_ascii=False),
             status_code=400, media_type="application/json")
     if len(answers) > 100:
-        return Response(
-            content=json.dumps({"error": (
-                f"Câu hỏi '{questionName}' có {len(answers)} dòng, vượt quá giới "
-                f"hạn 100 dòng/file của cuộc thi. Vui lòng xoá bớt trên UI trước "
-                f"khi export.")}, ensure_ascii=False),
-            status_code=400, media_type="application/json")
+        logger.warning(f"export_kis: '{questionName}' có {len(answers)} dòng, lấy 100 dòng đầu.")
+        answers = answers[:100]
     return Response(
         content=kis_csv(answers), media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{questionName}.csv"'})
@@ -748,17 +744,18 @@ async def export_submission_zip():
             if not answers:
                 warnings.append(f"{key}: không có dữ liệu, đã bỏ qua.")
                 continue
+            if len(answers) > 100:
+                msg = (f"{key}: có {len(answers)} dòng (vượt quá 100), "
+                       f"đã tự động giữ lại 100 dòng đầu tiên.")
+                warnings.append(msg)
+                logger.warning("Export ZIP: %s", msg)
+                answers = answers[:100]
+
             if key.endswith("-qa"):
                 content = qa_csv(answers)
             elif key.endswith("-trake"):
                 content = trake_csv(answers)
             else:
-                if len(answers) > 100:
-                    msg = (f"{key}: có {len(answers)} dòng (vượt quá giới hạn "
-                           f"100), đã bỏ qua.")
-                    warnings.append(msg)
-                    logger.warning("Export ZIP: %s", msg)
-                    continue
                 content = kis_csv(answers)
             zf.writestr(f"submission/{key}.csv", content)
         if warnings:

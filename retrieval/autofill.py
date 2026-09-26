@@ -258,51 +258,61 @@ def autofill(store, manual, candidates=None, config=None, ignore=None,
                          f"lap khoang trong {fr[i] - fi:+d} frame quanh {vid}#{fi}",
                          allow_between=True)
 
-    # --- 4. Phan DUOI (Deferred MMR): Can bang Relevance va Diversity ----------
+    # --- 4. Phan DUOI: Deferred MMR hoac Cu (Sequential) -----------------------
     # Den duoc day nghia la cac o dau da truot -> phu them khoanh khac khac 
     # va video khac moi la viec dang lam.
     remaining_pool = pool[n_head:]
+    autofill_method = getattr(cfg, "autofill_method", "deferred_mmr")
+
     if remaining_pool and len(out) < target:
-        # Chuan hoa diem (Relevance) ve [0, 1] de can bang voi Diversity Penalty
-        scores = [s for _, _, s in remaining_pool]
-        min_s, max_s = min(scores), max(scores)
-        
-        # Tap cac diem thoi gian da chon theo video, de tinh Diversity Penalty
-        picked_pts = {}
-        for r in out:
-            picked_pts.setdefault(r["video_id"], []).append(r["pts_time"])
+        if autofill_method == "deferred_mmr":
+            # Chuan hoa diem (Relevance) ve [0, 1] de can bang voi Diversity Penalty
+            scores = [s for _, _, s in remaining_pool]
+            min_s, max_s = min(scores), max(scores)
             
-        mmr_lambda = getattr(cfg, "autofill_mmr_lambda", 0.5)
-        
-        # Vong lap tham lam (Greedy)
-        while remaining_pool and len(out) < target:
-            best_idx = -1
-            best_mmr_score = -float('inf')
-            
-            for i, (key, pts, raw_score) in enumerate(remaining_pool):
-                # 1. Relevance
-                rel = 1.0 if max_s == min_s else (raw_score - min_s) / (max_s - min_s)
+            # Tap cac diem thoi gian da chon theo video, de tinh Diversity Penalty
+            picked_pts = {}
+            for r in out:
+                picked_pts.setdefault(r["video_id"], []).append(r["pts_time"])
                 
-                # 2. Diversity Penalty
-                vid = key[0]
-                penalty = 0.0
-                if vid in picked_pts:
-                    # Penalty = max(0, 1 - delta / tail_gap)
-                    sims = [max(0.0, 1.0 - abs(pts - t) / tail_gap) for t in picked_pts[vid]]
-                    penalty = max(sims) if sims else 0.0
-                
-                # 3. MMR Score
-                mmr_score = (1.0 - mmr_lambda) * rel - mmr_lambda * penalty
-                
-                if mmr_score > best_mmr_score:
-                    best_mmr_score = mmr_score
-                    best_idx = i
+            mmr_lambda = getattr(cfg, "autofill_mmr_lambda", 0.5)
             
-            # Chon ung vien tot nhat
-            best_key, best_pts, _ = remaining_pool.pop(best_idx)
-            
-            if emit(best_key[0], best_key[1], "autofill", 
-                    f"Deferred MMR (lambda={mmr_lambda}) (o {head + 1}+)"):
-                picked_pts.setdefault(best_key[0], []).append(best_pts)
+            # Vong lap tham lam (Greedy)
+            while remaining_pool and len(out) < target:
+                best_idx = -1
+                best_mmr_score = -float('inf')
+                
+                for i, (key, pts, raw_score) in enumerate(remaining_pool):
+                    # 1. Relevance
+                    rel = 1.0 if max_s == min_s else (raw_score - min_s) / (max_s - min_s)
+                    
+                    # 2. Diversity Penalty
+                    vid = key[0]
+                    penalty = 0.0
+                    if vid in picked_pts:
+                        # Penalty = max(0, 1 - delta / tail_gap)
+                        sims = [max(0.0, 1.0 - abs(pts - t) / tail_gap) for t in picked_pts[vid]]
+                        penalty = max(sims) if sims else 0.0
+                    
+                    # 3. MMR Score — Eq. (6) in paper:
+                    #   c* = argmax  λ ŝ(c) − (1−λ) penalty
+                    mmr_score = mmr_lambda * rel - (1.0 - mmr_lambda) * penalty
+                    
+                    if mmr_score > best_mmr_score:
+                        best_mmr_score = mmr_score
+                        best_idx = i
+                
+                # Chon ung vien tot nhat
+                best_key, best_pts, _ = remaining_pool.pop(best_idx)
+                
+                if emit(best_key[0], best_key[1], "autofill", 
+                        f"Deferred MMR (lambda={mmr_lambda}) (o {head + 1}+)"):
+                    picked_pts.setdefault(best_key[0], []).append(best_pts)
+        else:
+            # Cach cu: them vao theo thu tu
+            for key, pts, _ in remaining_pool:
+                if len(out) >= target:
+                    break
+                emit(key[0], key[1], "autofill", f"Old Method (Sequential) (o {head + 1}+)")
 
     return out[:target]

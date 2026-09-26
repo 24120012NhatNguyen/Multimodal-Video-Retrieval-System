@@ -1,0 +1,40 @@
+
+> ai@0.1.0 dev
+> next dev
+
+- warn Port 3000 is in use, trying 3001 instead.
+- ready started server on 0.0.0.0:3001, url: http://localhost:3001
+- [36minfo[39m Loaded env from /Users/ngovietthanhbinh/Project/AIC2026/AIC26/Multimodal-Video-Retrieval-System/frontend/.env.local
+- [35mevent[39m compiled client and server successfully in 59 ms (18 modules)
+- [36mwait[39m compiling...
+- [35mevent[39m compiled client and server successfully in 66 ms (18 modules)
+(node:6508) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+- [36mwait[39m compiling /_error (client and server)...
+Browserslist: caniuse-lite is outdated. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+- [35mevent[39m compiled client and server successfully in 795 ms (178 modules)
+- [36mwait[39m compiling...
+- [33mwarn[39m Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+- [36mwait[39m compiling / (client and server)...
+- [35mevent[39m compiled client and server successfully in 640 ms (415 modules)
+- [33mwarn[39m Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+- [36mwait[39m compiling /submit (client and server)...
+- [35mevent[39m compiled client and server successfully in 783 ms (441 modules)
+Warning: useLayoutEffect does nothing on the server, because its effect cannot be encoded into the server renderer's output format. This will lead to a mismatch between the initial, non-hydrated UI and the intended UI. To avoid this, useLayoutEffect should only be used in components that render exclusively on the client. See https://reactjs.org/link/uselayouteffect-ssr for common fixes.
+    at GridDropZone (/Users/ngovietthanhbinh/Project/AIC2026/AIC26/Multimodal-Video-Retrieval-System/frontend/node_modules/react-grid-dnd/cjs/index.js:326:17)
+    at div
+    at GridContextProvider (/Users/ngovietthanhbinh/Project/AIC2026/AIC26/Multimodal-Video-Retrieval-System/frontend/node_modules/react-grid-dnd/cjs/index.js:85:23)
+    at div
+    at div
+    at Submit (webpack-internal:///./src/pages/submit.jsx:44:92)
+    at App (webpack-internal:///./src/pages/_app.tsx:11:16)
+    at StyleRegistry (/Users/ngovietthanhbinh/Project/AIC2026/AIC26/Multimodal-Video-Retrieval-System/frontend/node_modules/styled-jsx/dist/index/index.js:449:36)
+    at PathnameContextProviderAdapter (/Users/ngovietthanhbinh/Project/AIC2026/AIC26/Multimodal-Video-Retrieval-System/frontend/node_modules/next/dist/shared/lib/router/adapters.js:84:11)
+    at AppContainer (/Users/ngovietthanhbinh/Project/AIC2026/AIC26/Multimodal-Video-Retrieval-System/frontend/node_modules/next/dist/server/render.js:346:29)
+    at AppContainerWithIsomorphicFiberStructure (/Users/ngovietthanhbinh/Project/AIC2026/AIC26/Multimodal-Video-Retrieval-System/frontend/node_modules/next/dist/server/render.js:382:57)
+    at div
+    at Body (/Users/ngovietthanhbinh/Project/AIC2026/AIC26/Multimodal-Video-Retrieval-System/frontend/node_modules/next/dist/server/render.js:682:21)
+- [36mwait[39m compiling /shot (client and server)...
+- [35mevent[39m compiled client and server successfully in 292 ms (449 modules)

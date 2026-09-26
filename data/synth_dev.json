@@ -1,0 +1,116 @@
+[
+  {
+    "sample_id": "sample_01",
+    "query_text": "Tìm video quay cận cảnh nhiều quả trứng màu trắng được xếp thành các hàng ngay ngắn trên nền cát đất ngoài trời. Và có thông tin nhắc đến nhóm \"Ngũ Bang\"",
+    "video_id": "L21_V003",
+    "n_events": 1,
+    "event1_s": 7175,
+    "event1_e": 7275
+  },
+  {
+    "sample_id": "sample_02",
+    "query_text": "Trong video thời sự tại quầy giao dịch, cô gái buộc tóc đuôi ngựa, mặc áo khoác trắng có mũ, ngồi đối diện cô thu ngân mặc áo xanh lá, đang làm gì với chiếc điện thoại?",
+    "video_id": "L21_V002",
+    "n_events": 1,
+    "event1_s": 1560,
+    "event1_e": 1590
+  },
+  {
+    "sample_id": "sample_03",
+    "query_text": "Tìm 2 khoảnh khắc chính trong pha rút đích của chặng đua xe đạp: (1) góc quay từ trên cao khi nhóm 3 vận động viên đang bứt tốc về đích, (2) khoảnh khắc vận động viên áo vàng cán qua vạch đích đầu tiên và bắt giơ tay ăn mừng chiến thắng.",
+    "video_id": "L23_V015",
+    "n_events": 2,
+    "event1_s": 6450,
+    "event2_s": 6600,
+    "event1_e": 6575,
+    "event2_e": 6700
+  },
+  {
+    "sample_id": "sample_04",
+    "query_text": "Tìm video quay cảnh người đàn ông mặc áo sơ mi xanh lá đeo kính ngồi trên xích lô ngoài đường phố, phía sau có một chiếc xe buýt màu cam vừa chạy vượt qua.",
+    "video_id": "L27_V001",
+    "n_events": 1,
+    "event1_s": 1750,
+    "event1_e": 1900
+  },
+  {
+    "sample_id": "sample_05",
+    "query_text": "Tìm 5 khoảnh khắc chính trong quy trình đổ bánh xèo: (1) khuấy đều bột màu vàng trong ca, (2) tráng bột lên chảo nóng, (3) rải các nguyên liệu nhân gồm giá đỗ và đậu xanh lên bánh, (4) gập đôi bánh xèo lại, (5) gắp bánh xèo đã hoàn thành ra dĩa.",
+    "video_id": "L27_V003",
+    "n_events": 5,
+    "event1_s": 5150,
+    "event2_s": 5250,
+    "event3_s": 5650,
+    "event4_s": 6125,
+    "event5_s": 6350,
+    "event1_e": 5175,
+    "event2_e": 5400,
+    "event3_e": 5800,
+    "event4_e": 6200,
+    "event5_e": 6375
+  },
+  {
+    "sample_id": "sample_06",
+    "query_text": "Tìm video quay cảnh một bé trai mặc áo thun màu cam in hình đang thích thú cầm dây thả diều, bên cạnh có một phụ nữ mặc áo sơ mi và quần màu trắng chống tay vào hông nhìn theo.",
+    "video_id": "L27_V010",
+    "n_events": 1,
+    "event1_s": 12500,
+    "event1_e": 12550
+  },
+  {
+    "sample_id": "sample_07",
+    "query_text": "Ở phần kết thúc chương trình 'Việt Nam Đi Là Ghiền' giữa cánh đồng khóm, người phụ nữ mặc áo hồng quàng khăn rằn nói về thông tin gì?",
+    "video_id": "L27_V013",
+    "n_events": 1,
+    "event1_s": 13325,
+    "event1_e": 13450
+  },
+  {
+    "sample_id": "sample_08",
+    "query_text": "Tìm video quay cảnh ba người đàn ông đang ngồi quanh một bàn ăn trải khăn xanh trước hiên nhà, trong đó người đàn ông mặc áo thun xanh lá đeo kính bên trái đang dùng tay bốc thức ăn cho vào miệng.",
+    "video_id": "L27_V016",
+    "n_events": 1,
+    "event1_s": 11375,
+    "event1_e": 11425
+  },
+  {
+    "sample_id": "sample_09",
+    "query_text": "Trong video cảnh mua đồ ăn ở quầy hàng lúc trời mưa, có bao nhiêu bịch/bì nước lèo (nước bún) màu vàng cam được cột sẵn đặt ở mép bàn?",
+    "video_id": "L27_V006",
+    "n_events": 1,
+    "event1_s": 4150,
+    "event1_e": 4225
+  },
+  {
+    "sample_id": "sample_10",
+    "query_text": "Tìm video quay cận cảnh hai bàn tay đang cầm hai con cua rừng/cua núi nhỏ màu đỏ tím giơ lên trước ống kính ngoài tự nhiên.",
+    "video_id": "L27_V004",
+    "n_events": 1,
+    "event1_s": 11500,
+    "event1_e": 11625
+  },
+  {
+    "sample_id": "sample_11",
+    "query_text": "Tìm video ghi lại cảnh biểu diễn lân sư rồng ngoài trời, có con lân màu vàng đang đứng sau dàn cột Mai Hoa Thung, bên trái là mô hình lồng đèn/quả cầu màu đỏ vàng và góc dưới bên phải có một người nam mặc áo đen đang cầm máy ảnh chụp.",
+    "video_id": "L24_V026",
+    "n_events": 1,
+    "event1_s": 5725,
+    "event1_e": 5850
+  },
+  {
+    "sample_id": "sample_12",
+    "query_text": "Tìm video diễn án phiên tòa giả định tại trường SIU (Saigon International University), cảnh một người đàn ông áo đen đứng quay lưng đối diện hội đồng xét xử, bên trái có nữ thư ký mặc vest đen đang đứng cầm micro phát biểu.",
+    "video_id": "L25_V013",
+    "n_events": 1,
+    "event1_s": 1678,
+    "event1_e": 1708
+  },
+  {
+    "sample_id": "sample_13",
+    "query_text": "Tìm video quay cảnh các học sinh tiểu học mặc đồng phục xếp hàng lấy thức ăn buffet tại căng tin trường học tràn ngập ánh sáng, nổi bật với một bé gái thắt bím tóc đeo băng đô trắng đang tươi cười dùng kẹp gắp món ăn vào đĩa.",
+    "video_id": "L25_V084",
+    "n_events": 1,
+    "event1_s": 23556,
+    "event1_e": 23586
+  }
+]

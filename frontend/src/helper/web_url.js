@@ -9,23 +9,22 @@
 //
 // Anh PHAI lay o local: Kaggle chi mount artifacts, khong co data/videos (65GB).
 
-const env = (key, fallback) => {
-  const v = process.env[key];
-  return v && v.trim() ? v.trim().replace(/\/+$/, "") : fallback;
+const clean = (v, fallback) => {
+  return v && typeof v === "string" && v.trim() ? v.trim().replace(/\/+$/, "") : fallback;
 };
 
-// Backend tim kiem tren Kaggle. Doi moi lan mo tunnel moi.
-export const web_url = env("NEXT_PUBLIC_WEB_URL", "https://donation-bonfire-putdown.ngrok-free.dev");
+// Backend tim kiem: doc tu bien NEXT_PUBLIC_WEB_URL, mac dinh http://localhost:8080
+export const web_url = clean(process.env.NEXT_PUBLIC_WEB_URL, "http://localhost:8080");
 
 // Server trang thai chay ngay tren may nay.
-export const socket_url = env("NEXT_PUBLIC_SOCKET_URL", "http://localhost:8081");
+export const socket_url = clean(process.env.NEXT_PUBLIC_SOCKET_URL, "http://localhost:8081");
 
 // Anh keyframe: mac dinh cung server voi socket_url.
-export const media_url = env("NEXT_PUBLIC_MEDIA_URL", socket_url);
+export const media_url = clean(process.env.NEXT_PUBLIC_MEDIA_URL, socket_url);
 
 // Server nop bai cua BTC.
-export const server = env("NEXT_PUBLIC_SUBMIT_URL", `${socket_url}/submit`);
-export const session = env("NEXT_PUBLIC_SESSION", "1");
+export const server = clean(process.env.NEXT_PUBLIC_SUBMIT_URL, `${socket_url}/submit`);
+export const session = clean(process.env.NEXT_PUBLIC_SESSION, "1");
 
 
 // ---------------------------------------------------------------------------

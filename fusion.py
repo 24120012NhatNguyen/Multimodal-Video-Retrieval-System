@@ -201,6 +201,23 @@ def rrf(ranked_lists, k=60, weights=None):
     return sorted(score.items(), key=lambda x: -x[1])
 
 
+def z_score_fusion(ranked_lists, weights=None):
+    """Z-Score Fusion tren diem so am (hoac diem tho neu co)."""
+    weights = weights or {}
+    score = defaultdict(float)
+    for name, lst in ranked_lists.items():
+        w = weights.get(name, 1.0)
+        if not lst:
+            continue
+        scores = [sc for _, sc in lst]
+        mu = np.mean(scores)
+        std = np.std(scores)
+        std = std if std > 1e-6 else 1.0
+        for vid, sc in lst:
+            score[vid] += w * ((sc - mu) / std)
+    return sorted(score.items(), key=lambda x: -x[1])
+
+
 def explain(ranked_lists, vid):
     """Video nay dung hang may o tung kenh -- de debug va hien tren UI."""
     out = {}
