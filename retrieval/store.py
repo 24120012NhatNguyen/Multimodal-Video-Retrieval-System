@@ -39,16 +39,22 @@ class ArtifactStore:
             pack = os.path.basename(pack_dir)
             feat_dir = os.path.join(pack_dir, "features")
             kf_dir = os.path.join(pack_dir, "keyframes")
-            if not (os.path.isdir(feat_dir) and os.path.isdir(kf_dir)):
+            if not os.path.isdir(feat_dir):
                 continue
 
             n_video = 0
             for npy in sorted(glob.glob(os.path.join(feat_dir, "*.npy"))):
                 vid = os.path.basename(npy)[:-4]
                 csv_path = os.path.join(kf_dir, f"{vid}.csv")
+                
+                # Kaggle dataset fallback: if csv is not in pack's keyframes dir, check root map-keyframes
                 if not os.path.exists(csv_path):
-                    self.skipped.append((vid, "thieu keyframes/*.csv"))
-                    continue
+                    alt_csv = os.path.join(root, "map-keyframes", f"{vid}.csv")
+                    if os.path.exists(alt_csv):
+                        csv_path = alt_csv
+                    else:
+                        self.skipped.append((vid, "thieu keyframes/*.csv"))
+                        continue
 
                 X = np.load(npy)
                 rows = self._read_csv(csv_path)
