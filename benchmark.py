@@ -79,6 +79,14 @@ def evaluate_config(config_name, flags, qset, s):
     tot_r_oracle = 0.0
     tot_final_oracle = 0.0
     
+    # Split tracking
+    kis_auto = 0.0
+    kis_oracle = 0.0
+    n_kis = 0
+    trake_auto = 0.0
+    trake_oracle = 0.0
+    n_trake = 0
+    
     from retrieval.autofill import autofill
     from eval.gt import final_score
     from retrieval.query import decompose
@@ -99,7 +107,13 @@ def evaluate_config(config_name, flags, qset, s):
             
         if q["n_events"] == 1:
             # KIS/QA evaluation using Autofill
-            wide = eng.search(query_en=query_en_fused, query_vi=query_vi, frame_topk=3000, kind="generic_chain")
+            wide = eng.search(
+                query_en=query_en_fused, 
+                query_vi=query_vi, 
+                frame_topk=3000, 
+                kind="generic_chain",
+                weights=getattr(eng.cfg, "weights", None)
+            )
             cands = []
             for v in wide.get("videos", []):
                 vi = v["video_info"]
@@ -116,14 +130,37 @@ def evaluate_config(config_name, flags, qset, s):
             fs, rank = final_score(out, q["video_id"], q["events"][0][0], q["events"][0][1])
             r = 1.0 if rank is not None else 0.0
             
+            # True Oracle calculation for KIS
+            oracle_rank = None
+            for i, c in enumerate(cands):
+                if c["video_id"] == q["video_id"] and q["events"][0][0] <= c["frame_idx"] <= q["events"][0][1]:
+                    oracle_rank = i + 1
+                    break
+                    
+            if oracle_rank is not None:
+                r_oracle = 1.0
+                fs_oracle = sum(1 for k in (1, 5, 20, 50, 100) if k >= oracle_rank) / 5 * 1.0
+            else:
+                r_oracle = 0.0
+                fs_oracle = 0.0
+            
             tot_r_auto += r
             tot_final_auto += fs
-            tot_r_oracle += r
-            tot_final_oracle += fs
+            tot_r_oracle += r_oracle
+            tot_final_oracle += fs_oracle
+            
+            kis_auto += fs
+            kis_oracle += fs_oracle
+            n_kis += 1
             
         else:
             # TRAKE evaluation using DP
-            fused, _, _ = eng.rank_videos(query_en_fused, query_vi, kind="generic_chain")
+            fused, _, _ = eng.rank_videos(
+                query_en_fused, 
+                query_vi, 
+                kind="generic_chain",
+                weights=getattr(eng.cfg, "weights", None)
+            )
             cands = [v for v, _ in fused if v in store.video_slice][:eng.cfg.video_topn]
             
             aligned = eng.align_videos(ev_en, cands)
@@ -149,16 +186,30 @@ def evaluate_config(config_name, flags, qset, s):
             r_oracle = r_auto
             fs_oracle = fs_auto
             if mine and "k_best_filled" in mine and eng.cfg.dp_method == "k-best":
+                if config_name == "5. Full System (Ours)":
+                    print(f"\n[DEBUG TRAKE {q['id']}] len(k_best_filled): {len(mine['k_best_filled'])}")
+                    for k_idx, p in enumerate(mine['k_best_filled'][:3]):
+                        print(f"  path {k_idx}: {p}")
                 r_scores = [trake_score(filled_path, q["events"]) for filled_path in mine["k_best_filled"]]
                 r_oracle = max(r_scores)
                 if rank_dp:
                     fs_oracle = sum(1 for k in (1, 5, 20, 50, 100) if k >= rank_dp) / 5 * r_oracle
             tot_r_oracle += r_oracle
             tot_final_oracle += fs_oracle
+            
+            trake_auto += fs_auto
+            trake_oracle += fs_oracle
+            n_trake += 1
         
     n = len(qset)
     avg_fs_auto = tot_final_auto / n if n > 0 else 0
     avg_fs_oracle = tot_final_oracle / n if n > 0 else 0
+    
+    avg_kis_auto = kis_auto / n_kis if n_kis > 0 else 0
+    avg_kis_oracle = kis_oracle / n_kis if n_kis > 0 else 0
+    
+    avg_trake_auto = trake_auto / n_trake if n_trake > 0 else 0
+    avg_trake_oracle = trake_oracle / n_trake if n_trake > 0 else 0
     
     # Calculate average latency based on dp_method
     if flags.get('dp_method') == '1-best':
@@ -171,10 +222,13 @@ def evaluate_config(config_name, flags, qset, s):
         
     return {
         "Config": config_name,
-        "mAP (Auto)": round(avg_fs_auto, 4),
-        "mAP (Oracle)": round(avg_fs_oracle, 4),
-        "LLM (ms)": round(llm_latency, 1),
-        "DP Latency (ms/video)": round(avg_latency, 2),
+        "n_kis": n_kis,
+        "n_trake": n_trake,
+        "mAP (KIS)": round(avg_kis_auto, 4),
+        "mAP (TRAKE)": round(avg_trake_auto, 4),
+        "mAP (All)": round(avg_fs_auto, 4),
+        "Oracle (All)": round(avg_fs_oracle, 4),
+        "DP Lat (ms)": round(avg_latency, 2),
     }
 
 def main():
@@ -202,7 +256,8 @@ def main():
                 "use_text_index": False,
                 "fusion_method": "rrf",
                 "dp_method": "1-best",
-                "autofill_method": "old"
+                "autofill_method": "old",
+                "weights": {"siglip": 1.0, "meta": 0.0, "asr": 0.0, "ocr": 0.0}
             }
         },
         {
@@ -212,7 +267,8 @@ def main():
                 "use_text_index": False,
                 "fusion_method": "rrf",
                 "dp_method": "1-best",
-                "autofill_method": "old"
+                "autofill_method": "old",
+                "weights": {"siglip": 1.0, "meta": 0.0, "asr": 0.0, "ocr": 0.0}
             }
         },
         {
@@ -222,7 +278,8 @@ def main():
                 "use_text_index": True,
                 "fusion_method": "rrf",
                 "dp_method": "1-best",
-                "autofill_method": "old"
+                "autofill_method": "old",
+                "weights": {"siglip": 1.0, "meta": 0.2, "asr": 0.2, "ocr": 0.2}
             }
         },
         {
@@ -232,7 +289,8 @@ def main():
                 "use_text_index": True,
                 "fusion_method": "z-score",
                 "dp_method": "1-best",
-                "autofill_method": "old"
+                "autofill_method": "old",
+                "weights": {"siglip": 1.0, "meta": 0.2, "asr": 0.2, "ocr": 0.2}
             }
         },
         {
@@ -242,7 +300,8 @@ def main():
                 "use_text_index": True,
                 "fusion_method": "z-score",
                 "dp_method": "k-best",
-                "autofill_method": "deferred_mmr"
+                "autofill_method": "deferred_mmr",
+                "weights": {"siglip": 1.0, "meta": 0.2, "asr": 0.2, "ocr": 0.2}
             }
         }
     ]
@@ -263,9 +322,9 @@ def main():
         
     df = pd.DataFrame(results)
     
-    # Output Markdown Table
+    # Output Table
     print("\n# Ablation Study & Latency Evaluation Results\n")
-    print(df.to_markdown(index=False))
+    print(df.to_string(index=False))
     
     # Save to CSV
     csv_path = "ablation_results.csv"

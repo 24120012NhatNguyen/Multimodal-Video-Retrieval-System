@@ -1,0 +1,7 @@
+Loading system components...
+MetaIndex[meta]: 873 video, 3324 tu, do dai trung binh 279
+MetaIndex[meta_fold]: 873 video, 2045 tu, do dai trung binh 279
+MetaIndex[asr]: 859 video, 10179 tu, do dai trung binh 1520
+MetaIndex[ocr]: 873 video, 78320 tu, do dai trung binh 4597
+Loading dataset...
+Loaded 13 queries for evaluation.
